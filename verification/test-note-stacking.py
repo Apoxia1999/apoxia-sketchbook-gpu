@@ -1,0 +1,16 @@
+exec(open('verification/test-text-stress.py').read().split("command('/goog/cdp/execute'")[0])
+exec(open('verification/test-text-interactions.py').read().split("cmd('/url'")[0])
+cmd('/url',{'url':'http://localhost:4190'});time.sleep(4)
+asyncjs('await initialBoardReady;sharedLastInteraction=performance.now()+1e9;window.__stackNotes=[];for(const [width,height] of [[300,160],[2000,1200]]){const note=await apiChange("/api/text","POST",{x:10000000,y:0,displayWidth:width,displayHeight:height,textFontSize:17,chromeScale:1,color:"#f7f7f4"});items.set(note.id,note);updateCard(note);__stackNotes.push(note);}camera.x=300-10000000;camera.y=250;camera.scale=1;updateStacking();renderCamera();return true;')
+try:
+ assert js('return Number(getComputedStyle(cards.get(__stackNotes[0].id)).zIndex)>Number(getComputedStyle(cards.get(__stackNotes[1].id)).zIndex)&&document.elementFromPoint(350,300).closest(".text-card")?.dataset.id===__stackNotes[0].id')
+ js('camera.scale=.3;camera.x=300-10000000*.3;renderCamera();')
+ time.sleep(.5)
+ assert js('return noteNeedsNativeBase(__stackNotes[0])===false&&noteNeedsNative(__stackNotes[0])===true&&cards.get(__stackNotes[0].id).isConnected')
+ js('camera.scale=.05;camera.x=300-10000000*.05;renderCamera();');time.sleep(.5)
+ assert js('const a=noteGPU.models.get(__stackNotes[0].id),b=noteGPU.models.get(__stackNotes[1].id);return a.rank>b.rank')
+ asyncjs('await applyItemChanges(__stackNotes[0].id,{displayWidth:3000,displayHeight:2000});updateStacking();return true;')
+ assert js('return gpuRanks.get(__stackNotes[1].id)>gpuRanks.get(__stackNotes[0].id)')
+ print('Smaller note above newer large note, mixed LODs, GPU ranks and resize reordering passed',flush=True)
+finally:
+ asyncjs('for(const note of __stackNotes)await setNotePresent(note,false);return true;')

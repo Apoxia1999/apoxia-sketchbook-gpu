@@ -1,0 +1,11 @@
+exec(open('verification/test-text-stress.py').read().split("command('/goog/cdp/execute'")[0])
+exec(open('verification/test-text-interactions.py').read().split("cmd('/url'")[0])
+cmd('/url',{'url':'http://localhost:4190'});time.sleep(4)
+asyncjs('await initialBoardReady;sharedLastInteraction=performance.now()+1e9;window.__openedOriginals=[];window.apoxiaDesktop={openOriginal:async id=>__openedOriginals.push(id)};window.__lockedVideo={id:"00000000-0000-4000-8000-000000000001",type:"video",status:"ready",locked:true,originalAvailable:true,x:10000000,y:0,displayWidth:200,displayHeight:100};items.set(__lockedVideo.id,__lockedVideo);camera.scale=1;camera.x=300-10000000;camera.y=250;return true;')
+for mode in ['move','draw']:
+ js('setMode('+json.dumps(mode)+',false);photoGPU.sync([{id:__lockedVideo.id,type:"video",x:__lockedVideo.x,y:0,w:200,h:100,rank:999999}]);viewport.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,cancelable:true,button:0,clientX:350,clientY:300}));')
+ time.sleep(.1)
+ assert js('return __openedOriginals.at(-1)===__lockedVideo.id&&__lockedVideo.locked&&mode==='+json.dumps(mode))
+assert js('return __openedOriginals.length===2')
+js('items.delete(__lockedVideo.id);')
+print('Double-click opens locked video original in move/draw modes without unlocking',flush=True)

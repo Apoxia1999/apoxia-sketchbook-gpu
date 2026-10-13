@@ -1,0 +1,10 @@
+{
+  "fullAtlas": {
+    "capacity": 128,
+    "highResolutionReady": true,
+    "native": false,
+    "width": 360.00000000000006
+  },
+  "highDpiNative": true,
+  "errors": []
+}

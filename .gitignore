@@ -1,0 +1,19 @@
+node_modules/
+.desktop-tools/
+data/
+dist/
+verification/desktop-profile/
+verification/*-data/
+verification/restored*/
+verification/*.zip
+verification/*.png
+
+verification/*-tests/
+
+# Local environment, credentials and generated Python files
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+verification/*.log

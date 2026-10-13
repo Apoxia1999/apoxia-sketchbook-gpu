@@ -1,0 +1,7 @@
+{
+  "files": 7690,
+  "mode": "headed Chromium, 1440x1000, warmed atlas; 240 animation frames",
+  "overview": {"medianMs": 6.1, "p95Ms": 12.5, "cpuMedianMs": 0.7, "cpuP95Ms": 1.1, "gpuCpuMs": 0.1, "pending": 0, "originalTiles": 0},
+  "native": {"medianMs": 6.1, "p95Ms": 8.7, "cpuMedianMs": 0.9, "cpuP95Ms": 1.4, "originalTiles": 16, "pending": 0},
+  "browserErrors": []
+}

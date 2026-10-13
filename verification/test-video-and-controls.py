@@ -1,0 +1,35 @@
+exec(open('/tmp/test-features-gpu.py').read().split("command('/url'")[0])
+command('/url',{'url':'http://localhost:4180'});time.sleep(1)
+def pointer(acts):return command('/actions',{'actions':[{'type':'pointer','id':'mouse','parameters':{'pointerType':'mouse'},'actions':acts}]})
+e=command('/element',{'using':'css selector','value':'#fileInput'})['element-6066-11e4-a52e-4f735466cecf'];command('/element/'+e+'/value',{'text':'/tmp/sketch-gpu-test.mp4'})
+for i in range(60):
+ time.sleep(.3)
+ ready=js('return [...items.values()].find(a=>a.type==="video"&&a.status==="ready")?.id')
+ if ready:break
+assert ready;print('VIDEO_IMPORTED',ready,flush=True)
+js(f"setMode('move',false);const a=items.get('{ready}');camera.scale=1/a.chromeScale;camera.x=400-a.x*camera.scale;camera.y=200-a.y*camera.scale;renderCamera();")
+pointer([{'type':'pointerMove','x':500,'y':270,'duration':200},{'type':'pause','duration':500}]);time.sleep(1)
+js(f"cards.get('{ready}').querySelector('.video-frame').dispatchEvent(new PointerEvent('pointerenter',{{clientX:500,clientY:270}}));")
+time.sleep(1)
+print('VIDEO_PLAYBACK',js(f"const v=cards.get('{ready}').querySelector('video');return {{paused:v.paused,ready:v.readyState,time:v.currentTime,gpu:photoGPU.live.size+ownedPhotoGPU.live.size}}"),flush=True)
+assert js('return photoGPU.live.size+ownedPhotoGPU.live.size')>0
+pointer([{'type':'pointerMove','x':1200,'y':700,'duration':200}]);time.sleep(.5)
+image=js('return [...items.values()].find(a=>a.type==="image").id')
+js(f"const a=items.get('{image}');camera.scale=.15;camera.x=300-a.x*.15;camera.y=200-a.y*.15;renderCamera();")
+pointer([{'type':'pointerMove','x':400,'y':300,'duration':100},{'type':'pause','duration':100}]);time.sleep(.2)
+width=js(f"return items.get('{image}').displayWidth")
+# Reveal the southeast handle by moving into the image corner.
+pointer([{'type':'pointerMove','x':695,'y':495,'duration':150},{'type':'pause','duration':200}]);time.sleep(.2)
+handle=js(f"const r=cards.get('{image}').querySelector('.resize-se').getBoundingClientRect();return {{x:r.x+r.width/2,y:r.y+r.height/2,w:r.width}}")
+print('HANDLE',handle,flush=True)
+if handle['w']>0:
+ pointer([{'type':'pointerMove','x':int(handle['x']),'y':int(handle['y']),'duration':0},{'type':'pointerDown','button':0},{'type':'pointerMove','x':int(handle['x']+60),'y':int(handle['y']+45),'duration':300},{'type':'pointerUp','button':0}]);time.sleep(.4)
+ assert js(f"return items.get('{image}').displayWidth")>width;print('RESIZE','ok',flush=True)
+js(f"cards.get('{image}').querySelector('.media-lock-button').click()")
+time.sleep(.3);assert js(f"return items.get('{image}').locked");print('LOCK','ok',flush=True)
+js(f"cards.get('{image}').querySelector('.media-lock-button').click()")
+time.sleep(.3)
+js("setMode('laser',false);clearMagicSelection();")
+pointer([{'type':'pointerMove','x':350,'y':300,'duration':0},{'type':'pointerDown','button':0},{'type':'pointerMove','x':650,'y':300,'duration':300},{'type':'pointerUp','button':0}]);time.sleep(.3)
+print('LASER',js('return magicSelection.size'),flush=True);assert js('return magicSelection.size')>0
+print('LOG',command('/log',{'type':'browser'}),flush=True)

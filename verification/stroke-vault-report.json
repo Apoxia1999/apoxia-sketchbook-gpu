@@ -1,0 +1,14 @@
+{
+  "publicCachePurged": true,
+  "privateStrokeCleared": true,
+  "privateCanvasCleared": true,
+  "reopen": true,
+  "errors": [
+    {
+      "level": "INFO",
+      "message": "http://localhost:4188/ - Clear-Site-Data header on 'http://localhost:4188/api/vaults/2090cd30-8817-41cd-abcf-3abbd0ee8ea4/lock': Cleared data types: \"cache\".",
+      "source": "other",
+      "timestamp": 1791586052721
+    }
+  ]
+}

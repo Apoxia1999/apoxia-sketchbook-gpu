@@ -1,0 +1,64 @@
+{
+  "files": 7685,
+  "cold": {
+    "seconds": 1.87,
+    "state": {
+      "ready": 7685,
+      "stats": {
+        "domMedia": 0,
+        "owned": {
+          "cpuMs": 0,
+          "failed": 0,
+          "gpuBytes": 0,
+          "media": 0,
+          "originalTiles": 0,
+          "pending": 0,
+          "visible": 0
+        },
+        "public": {
+          "cpuMs": 7.200000047683716,
+          "failed": 0,
+          "gpuBytes": 150994944,
+          "media": 7685,
+          "originalTiles": 0,
+          "pending": 0,
+          "visible": 7685
+        },
+        "total": 7685
+      }
+    }
+  },
+  "reload": {
+    "seconds": 1.59,
+    "state": {
+      "ready": 7685,
+      "stats": {
+        "domMedia": 0,
+        "owned": {
+          "cpuMs": 0,
+          "failed": 0,
+          "gpuBytes": 0,
+          "media": 0,
+          "originalTiles": 0,
+          "pending": 0,
+          "visible": 0
+        },
+        "public": {
+          "cpuMs": 11.300000011920929,
+          "failed": 0,
+          "gpuBytes": 134217728,
+          "media": 7685,
+          "originalTiles": 0,
+          "pending": 0,
+          "visible": 7685
+        },
+        "total": 7685
+      }
+    }
+  },
+  "errors": [],
+  "conditionalCache": {
+    "status": 304,
+    "cacheControl": "private, no-cache"
+  }
+}

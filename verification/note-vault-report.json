@@ -1,0 +1,14 @@
+{
+  "clearedModels": true,
+  "clearedTextures": true,
+  "clearedPlaintext": true,
+  "reopen": true,
+  "errors": [
+    {
+      "level": "INFO",
+      "message": "http://localhost:4184/ - Clear-Site-Data header on 'http://localhost:4184/api/vaults/03067972-21d5-4c85-a7c9-eccfcfacb156/lock': Cleared data types: \"cache\".",
+      "source": "other",
+      "timestamp": 1791584990571
+    }
+  ]
+}

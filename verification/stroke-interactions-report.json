@@ -1,0 +1,18 @@
+{
+  "drawUndoRedo": true,
+  "eraseUndo": true,
+  "visibility": true,
+  "pixels": {
+    "alphaMeanError": 26.89354985680812,
+    "inkPixels": 61456,
+    "maxAlphaDifference": 255
+  },
+  "errors": [
+    {
+      "level": "WARNING",
+      "message": "rendering 2 Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently",
+      "source": "rendering",
+      "timestamp": 1791586029130
+    }
+  ]
+}

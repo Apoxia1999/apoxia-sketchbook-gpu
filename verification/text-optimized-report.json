@@ -1,0 +1,198 @@
+{
+  "notes": 1000,
+  "images": 7685,
+  "gpu": "ANGLE (AMD, AMD Radeon 780M Graphics (radeonsi phoenix ACO), OpenGL 4.6)",
+  "mixedOverview": {
+    "cpuMedianMs": 0.699999988079071,
+    "cpuP95Ms": 1.4000000357627869,
+    "domNotes": 0,
+    "focused": true,
+    "fpsMedian": 417,
+    "hidden": false,
+    "media": {
+      "domMedia": 0,
+      "owned": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 0.09999996423721313,
+        "failed": 0,
+        "gpuBytes": 134217728,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 7685
+      },
+      "total": 8685
+    },
+    "medianMs": 2.399999999999636,
+    "notes": {
+      "cpuMs": 0,
+      "failed": 0,
+      "gpuBytes": 50331648,
+      "media": 1000,
+      "originalTiles": 0,
+      "pending": 0,
+      "visible": 0
+    },
+    "p95Ms": 4.400000000000546,
+    "proxies": 1000,
+    "profile": {
+      "renderCamera": 0.1799999952316284,
+      "renderConnections": 0.020000004768371583,
+      "renderNotePreviews": 0.020000004768371583,
+      "renderSolidPreviews": 0.05999999046325684
+    }
+  },
+  "notesOverview": {
+    "cpuMedianMs": 0.7000000476837158,
+    "cpuP95Ms": 1.5,
+    "domNotes": 0,
+    "focused": true,
+    "fpsMedian": 526,
+    "hidden": false,
+    "media": {
+      "domMedia": 0,
+      "owned": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 0.10000002384185791,
+        "failed": 0,
+        "gpuBytes": 134217728,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 4047
+      },
+      "total": 8685
+    },
+    "medianMs": 1.8999999999996362,
+    "notes": {
+      "cpuMs": 0.10000002384185791,
+      "failed": 0,
+      "gpuBytes": 67108864,
+      "media": 1000,
+      "originalTiles": 0,
+      "pending": 0,
+      "visible": 1000
+    },
+    "p95Ms": 4.199999999998909,
+    "proxies": 1000,
+    "profile": {
+      "renderCamera": 0.48000000715255736,
+      "renderConnections": 0.019999992847442628,
+      "renderNotePreviews": 0.03999999761581421,
+      "renderSolidPreviews": 0.04000000953674317
+    }
+  },
+  "notesPreviewText": {
+    "cpuMedianMs": 1.199999988079071,
+    "cpuP95Ms": 3,
+    "domNotes": 0,
+    "focused": true,
+    "fpsMedian": 303,
+    "hidden": false,
+    "media": {
+      "domMedia": 1,
+      "owned": {
+        "cpuMs": 0.10000002384185791,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 0.19999998807907104,
+        "failed": 0,
+        "gpuBytes": 201326592,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 38,
+        "visible": 684
+      },
+      "total": 8685
+    },
+    "medianMs": 3.3000000000010914,
+    "notes": {
+      "cpuMs": 0,
+      "failed": 0,
+      "gpuBytes": 67108864,
+      "media": 1000,
+      "originalTiles": 0,
+      "pending": 0,
+      "visible": 0
+    },
+    "p95Ms": 5.5,
+    "proxies": 1000,
+    "profile": {
+      "renderCamera": 0.21999999284744262,
+      "renderConnections": 0.06000000238418579,
+      "renderNotePreviews": 0.019999992847442628,
+      "renderSolidPreviews": 0.020000004768371583
+    }
+  },
+  "notesEditable": {
+    "cpuMedianMs": 1.300000011920929,
+    "cpuP95Ms": 2.600000023841858,
+    "domNotes": 0,
+    "focused": true,
+    "fpsMedian": 256,
+    "hidden": false,
+    "media": {
+      "domMedia": 0,
+      "owned": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 0.19999998807907104,
+        "failed": 0,
+        "gpuBytes": 201326592,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 22
+      },
+      "total": 8685
+    },
+    "medianMs": 3.899999999999636,
+    "notes": {
+      "cpuMs": 0.19999998807907104,
+      "failed": 0,
+      "gpuBytes": 134217728,
+      "media": 1000,
+      "originalTiles": 0,
+      "pending": 0,
+      "visible": 54
+    },
+    "p95Ms": 6,
+    "proxies": 1000,
+    "profile": {
+      "renderCamera": 0.7600000023841857,
+      "renderConnections": 0.42000000476837157,
+      "renderNotePreviews": 0.1,
+      "renderSolidPreviews": 0.07999999523162842
+    }
+  },
+  "errors": []
+}

@@ -1,0 +1,41 @@
+{
+  "strokes": 2008,
+  "addedStrokes": 2000,
+  "notes": 1000,
+  "images": 7685,
+  "viewport": {
+    "dpr": 1,
+    "height": 1000,
+    "width": 1440
+  },
+  "mode": "headed hardware WebGL, frame cap disabled",
+  "overviewPan": {
+    "cpuMedianMs": 5.099999964237213,
+    "fpsMedian": 104,
+    "medianMs": 9.600000000000364,
+    "p95Ms": 13.100000000000364,
+    "drawingCpuMs": 5.939999997615814
+  },
+  "overviewZoom": {
+    "cpuMedianMs": 9.599999964237213,
+    "fpsMedian": 53,
+    "medianMs": 18.799999999999272,
+    "p95Ms": 50.79999999999927,
+    "drawingCpuMs": 6.239999997615814
+  },
+  "detailPan": {
+    "cpuMedianMs": 4,
+    "fpsMedian": 167,
+    "medianMs": 6,
+    "p95Ms": 8.900000000001455,
+    "drawingCpuMs": 2
+  },
+  "detailZoom": {
+    "cpuMedianMs": 4.100000023841858,
+    "fpsMedian": 161,
+    "medianMs": 6.19999999999709,
+    "p95Ms": 10.799999999999272,
+    "drawingCpuMs": 1.330000001192093
+  },
+  "errors": []
+}

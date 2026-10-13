@@ -1,0 +1,61 @@
+{
+  "doubleClickEdit": true,
+  "doubleClickEndEdit": true,
+  "bodyDragUndo": true,
+  "noHeaderGeometry": true,
+  "stableHoverPosition": true,
+  "invisibleCornersResizeUndo": true,
+  "distantLinePreview": true,
+  "drawThenDragWithoutEscape": true,
+  "gpuAlwaysVisibleShadow": true,
+  "logs": [
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - []Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader flag to opt in to lower security guarantees for trusted content.",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    },
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - []Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader flag to opt in to lower security guarantees for trusted content.",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    },
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - []Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader flag to opt in to lower security guarantees for trusted content.",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    },
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - []Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader flag to opt in to lower security guarantees for trusted content.",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    },
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - [.WebGL-0x3f640019d600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    },
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - [.WebGL-0x3f6400990000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    },
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - [.WebGL-0x3f640019dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    },
+    {
+      "level": "WARNING",
+      "message": "http://localhost:4190/ - [.WebGL-0x3f640019fa00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)",
+      "source": "rendering",
+      "timestamp": 1791815355787
+    }
+  ]
+}

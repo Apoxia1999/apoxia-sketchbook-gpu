@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Apoxia SketchBook
+Comment=Infinite canvas for references and sketches
+Exec=/home/apoxia/Work/referencias/node_modules/electron/dist/electron /home/apoxia/Work/referencias
+Path=/home/apoxia/Work/referencias
+Icon=/home/apoxia/Work/referencias/build/icon.png
+Terminal=false
+Categories=Graphics;Utility;
+StartupWMClass=Apoxia SketchBook

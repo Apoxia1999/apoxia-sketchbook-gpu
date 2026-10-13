@@ -1,0 +1,32 @@
+{
+  "movement": "passed",
+  "undoRedo": "passed",
+  "resize": "passed",
+  "lock": "passed",
+  "magicLaser": "passed",
+  "notes": "passed",
+  "drawing": "passed",
+  "scribe": "passed",
+  "videoGPUPlayback": "passed",
+  "persistentReload": "passed",
+  "nativeImage": {
+    "width": 2000,
+    "height": 1500,
+    "originalTiles": 12
+  },
+  "vault": {
+    "open": "passed",
+    "closedGPUCacheCleared": "passed",
+    "closedOriginalStatus": 404,
+    "reopen": "passed"
+  },
+  "electron": {
+    "started": true,
+    "webgl": true,
+    "desktopExportsEnabled": true
+  },
+  "bulkPreparation": {
+    "originals": 30,
+    "errors": 0
+  }
+}

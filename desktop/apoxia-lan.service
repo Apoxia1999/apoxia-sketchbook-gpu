@@ -1,0 +1,21 @@
+[Unit]
+Description=Apoxia SketchBook LAN access
+PartOf=graphical-session.target
+Wants=apoxia-sketchbook.service
+After=graphical-session-pre.target apoxia-sketchbook.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Work/referencias
+ExecStart=/usr/bin/env node %h/Work/referencias/scripts/share-lan.mjs
+Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
+Environment=APOXIA_LAN_HOST=192.168.1.229
+Environment=APOXIA_LAN_PORT=8765
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+UMask=0077
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es" spellcheck="false">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'">
+  <meta name="theme-color" content="#1a2542">
+  <link rel="icon" href="data:,">
+  <title>Apoxia SketchBook GPU</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/vault-coordinates.js" defer></script>
+  <script src="/desktop-bootstrap.js" defer></script>
+</head>
+<body>
+  <main id="viewport" aria-label="Canvas de referencias">
+    <div id="grid" aria-hidden="true"></div>
+    <canvas id="drawingLayer" aria-label="Trazos del canvas"></canvas>
+    <svg id="writingLayer" aria-label="Textos vectoriales del canvas"></svg>
+    <canvas id="writingDetail" aria-hidden="true"></canvas>
+    <div id="writingControls" aria-label="Controles del texto" hidden>
+      <button id="writingLock" class="note-lock-button" type="button" aria-label="Bloquear texto" aria-pressed="false"></button>
+      <button class="writing-handle writing-nw" data-corner="nw" type="button" aria-label="Escalar desde arriba a la izquierda"></button>
+      <button class="writing-handle writing-ne" data-corner="ne" type="button" aria-label="Escalar desde arriba a la derecha"></button>
+      <button class="writing-handle writing-se" data-corner="se" type="button" aria-label="Escalar desde abajo a la derecha"></button>
+      <button class="writing-handle writing-sw" data-corner="sw" type="button" aria-label="Escalar desde abajo a la izquierda"></button>
+    </div>
+    <div id="world"></div>
+    <div id="textLayer"></div>
+    <textarea id="writingEditor" aria-label="Scribe · escribir en el canvas · S" spellcheck="false" maxlength="5000" hidden></textarea>
+    <svg id="drawingPreview" aria-hidden="true"></svg>
+    <div id="eraserCursor" aria-hidden="true" hidden></div>
+    <div id="dropHint" class="drop-hint" hidden><span>Suelta tus vídeos o imágenes aquí</span></div>
+  </main>
+  <nav class="toolbar tool-rail" aria-label="Herramientas del canvas">
+    <div class="rail-group">
+<button id="drawButton" class="rail-button" type="button" title="Dibujar · E" aria-label="Dibujar · E" aria-pressed="false" ><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+  <path d="m15 5 4 4" /></svg></button>
+<button id="laserButton" class="rail-button" type="button" title="Magic Laser · W" aria-label="Magic Laser · W" aria-pressed="false"><svg viewBox="0 0 24 24" class="ui-icon" aria-hidden="true"><path d="m4 20 12-12M14 3v4M12 5h4M20 9v4M18 11h4M6 3v4M4 5h4"/></svg></button>
+<button id="writeButton" class="rail-button" type="button" title="Scribe · escribir en el canvas · S" aria-label="Scribe · escribir en el canvas · S" aria-pressed="false" ><span class="scribe-icon" aria-hidden="true">S</span></button>
+<button id="eraseButton" class="rail-button" type="button" title="Goma de borrar · D" aria-label="Goma de borrar · D" aria-pressed="false" ><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-eraser"><path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
+  <path d="m5.082 11.09 8.828 8.828" /></svg></button>
+    </div>
+    <label id="drawSizeControl" class="eraser-size draw-size" hidden>Grosor <input id="drawWidth" type="range" min="1" max="40" step="0.5" value="4" aria-label="Grosor del lápiz en píxeles"><output id="drawWidthValue">4 px</output></label>
+    <label id="eraserSizeControl" class="eraser-size" hidden>Radio <input id="eraserRadius" type="range" min="8" max="80" value="24" aria-label="Radio de la goma en píxeles"><output id="eraserRadiusValue">24 px</output></label>
+    <button id="colorButton" class="color-button" type="button" popovertarget="colorPicker" title="Color del lápiz y del texto" aria-label="Color del lápiz y del texto"><span></span></button>
+    <div class="rail-group">
+<button id="textButton" class="rail-button" type="button" title="Crear caja de texto · T" aria-label="Crear caja de texto · T" ><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-captions"><rect width="18" height="14" x="3" y="5" rx="2" ry="2" />
+  <path d="M7 15h4M15 15h2M7 11h2M13 11h4" /></svg></button>
+<button id="vaultButton" class="rail-button" type="button" title="Crear Vault cifrada" aria-label="Crear Vault"><svg viewBox="0 0 24 24" class="ui-icon" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><rect x="7" y="10" width="10" height="8" rx="2"/><path d="M9 10V8a3 3 0 0 1 6 0v2"/></svg></button>
+<button id="addButton" class="rail-button" type="button" title="Añadir archivos" aria-label="Añadir archivos" ><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-paperclip"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg></button>
+    </div>
+    <div class="rail-divider"></div>
+<button id="settingsButton" class="rail-button" type="button" title="Opciones del canvas" aria-label="Opciones del canvas" popovertarget="canvasSettings"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-settings"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+  <circle cx="12" cy="12" r="3" /></svg></button>
+    <input id="fileInput" type="file" multiple hidden>
+  </nav>
+  <section id="canvasSettings" class="canvas-settings" popover aria-label="Opciones del canvas">
+    <h2>Apoxia SketchBook <span class="app-version">v3.0.0 GPU</span></h2>
+    <div class="canvas-counts"><span id="count">0 referencias</span><span id="strokeCount">0 trazos</span></div>
+    <label class="settings-row">Idioma <select id="languageChoice" aria-label="Idioma"><option value="es">Español</option><option value="en">English</option></select></label>
+    <button id="toggleStrokes" class="settings-row" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-eye"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+  <circle cx="12" cy="12" r="3" /></svg><span>Mostrar dibujos</span></button>
+    <button id="toggleTexts" class="settings-row" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>Mostrar textos</span></button>
+    <button id="toggleMedia" class="settings-row" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>Mostrar imágenes y vídeos</span></button>
+    <button id="audioButton" class="settings-row" type="button" title="Activar sonido al reproducir" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-volume-2"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+  <path d="M16 9a5 5 0 0 1 0 6" />
+  <path d="M19.364 18.364a9 9 0 0 0 0-12.728" /></svg><span>Sonido de vídeos</span></button>
+    <div class="settings-divider"></div>
+    <h2 id="backgroundTitle">Fondo</h2>
+    <div class="background-choices" role="group" aria-labelledby="backgroundTitle">
+      <button type="button" data-background="dots">Puntos</button>
+      <button type="button" data-background="squares">Cuadros</button>
+      <button type="button" data-background="technical">Técnico</button>
+    </div>
+    <div class="settings-divider"></div>
+    <label class="settings-row">Navegación <select id="wheelNavigation" aria-label="Navegación con rueda o trackpad"><option value="auto">Automática</option><option value="trackpad">Trackpad</option><option value="mouse">Rueda de ratón</option></select></label>
+    <div class="settings-divider"></div>
+    <h2 id="themesTitle">Themes</h2>
+    <div id="themeChoices" class="theme-choices" role="group" aria-labelledby="themesTitle"></div>
+    <div class="settings-divider"></div>
+    <h2>Archivos y backups</h2>
+    <label class="settings-row"><span>Copiar media al importar</span><input id="copyMediaOnImport" type="checkbox" title="Desactivado: usar el archivo original sin copiarlo. Se guardan miniaturas para el canvas."></label>
+    <button id="copyMediaButton" class="settings-row" type="button"><span>Copiar media a DATA</span></button>
+    <button id="copyLinkedButton" class="settings-row" type="button"><svg viewBox="0 0 24 24" class="ui-icon" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/></svg><span>Copiar archivos vinculados a DATA</span></button>
+    <button id="exportCanvasButton" class="settings-row" type="button"><svg viewBox="0 0 24 24" class="ui-icon" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></svg><span>Exportar canvas ZIP</span></button>
+    <button id="importCanvasButton" class="settings-row" type="button"><svg viewBox="0 0 24 24" class="ui-icon" aria-hidden="true"><path d="M12 15V3m-5 5 5-5 5 5M4 17v4h16v-4"/></svg><span>Importar canvas ZIP</span></button>
+    <div class="settings-divider"></div>
+    <button id="clearButton" class="settings-row danger" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-trash"><path d="M10 11v6" />
+  <path d="M14 11v6" />
+  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+  <path d="M3 6h18" />
+  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg><span>Borrar todo</span></button>
+    <p class="settings-shortcuts"><span>Espacio · mover</span><br><span>E · dibujar</span> &nbsp; <span>D · borrar</span><br><span>W · Magic Laser</span><br><span>X · borrar</span><br><span>V · mostrar / ocultar fondo de nota</span><br><span>S · escribir</span> &nbsp; <span>T · nota en el cursor</span><br><span>H · encuadrar todo</span><br><span>Z / Alt + clic derecho · zoom</span><br><span>Alt+Z · zoom con tamaño fijo</span><br><span>F · fijar bajo el cursor / liberar todo</span><br><span>Alt + Espacio / botón central · mover con objeto fijo</span><br><span>Espacio + 1–5 · guardar vista</span><br><span>1–5 · volver a vista</span></p>
+  </section>
+  <section id="colorPicker" class="color-picker" popover aria-labelledby="colorPickerTitle">
+    <h2 id="colorPickerTitle">Color del lápiz y del texto</h2>
+    <div id="themeSwatches" class="theme-swatches" role="group" aria-label="Colores del tema"></div>
+    <label class="custom-color">Color personalizado <input id="penColor" type="color" value="#dfff00" aria-label="Elegir color personalizado"></label>
+  </section>
+  <aside class="controls" aria-label="Controles del canvas">
+    <button id="zoomOut" type="button" title="Alejar" aria-label="Alejar"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-minus"><path d="M5 12h14" /></svg></button>
+    <span id="zoomValue" aria-live="polite">100%</span>
+    <button id="zoomIn" type="button" title="Acercar" aria-label="Acercar"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-plus"><path d="M5 12h14" />
+  <path d="M12 5v14" /></svg></button>
+    <span class="control-divider"></span>
+    <button id="fitView" type="button" title="Encuadrar todo · H" aria-label="Encuadrar todos los elementos"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-maximize"><path d="M8 3H5a2 2 0 0 0-2 2v3" />
+  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+  <path d="M16 21h3a2 2 0 0 0 2-2v-3" /></svg></button>
+    <button id="resetView" type="button" title="Volver al nivel normal" aria-label="Volver al nivel normal"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+  <path d="M3 3v5h5" /></svg></button>
+  </aside>
+  <div id="help" class="help">Espacio: mover · E: dibujar · D: borrar · H: encuadrar · Z o Alt + botón derecho: zoom · Ctrl+Z: deshacer</div>
+  <div id="noteHint" class="note-hint" hidden>Sobre la nota <kbd>C</kbd> cambia el color <span class="palette-dots" aria-hidden="true"></span></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="clearDialog" class="clear-dialog" aria-labelledby="clearTitle" aria-describedby="clearDescription">
+    <h2 id="clearTitle">Borrar todo el canvas</h2>
+    <p id="clearDescription">Se eliminarán todas las referencias, dibujos, notas, textos vectoriales y Vaults cifradas, junto con las copias y los archivos originales guardados en esta app. No se puede deshacer.</p>
+    <p id="clearSummary" class="clear-summary"></p>
+    <div id="clearTrack" class="clear-track">
+      <span aria-hidden="true">Desliza para borrar todo →</span>
+      <button id="clearThumb" class="clear-thumb" type="button" role="slider" aria-label="Desliza hasta el final para borrar todo" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" title="Desliza hasta el final para confirmar">››</button>
+    </div>
+    <button id="cancelClear" class="clear-cancel" type="button">Cancelar</button>
+  </dialog>
+  <div id="transferOverlay" hidden role="status" aria-live="polite"><div class="transfer-card"><span class="transfer-spinner" aria-hidden="true"></span><strong id="transferStatus">Copiando…</strong><small id="transferDetail"></small></div></div>
+  <div id="canvasFind" class="canvas-find" hidden role="search" aria-label="Buscar en el canvas">
+    <input id="canvasFindInput" type="search" placeholder="Buscar en el canvas" aria-label="Texto a buscar" autocomplete="off" spellcheck="false">
+    <span id="canvasFindCount" role="status" aria-live="polite"></span>
+    <button id="canvasFindPrevious" type="button" title="Anterior (Mayús+Enter)" aria-label="Resultado anterior">⌃</button>
+    <button id="canvasFindNext" type="button" title="Siguiente (Enter)" aria-label="Resultado siguiente">⌄</button>
+    <button id="canvasFindClose" type="button" title="Cerrar (Esc)" aria-label="Cerrar búsqueda">×</button>
+  </div>
+  <div id="canvasFindHighlight" hidden aria-hidden="true"></div>
+</body>
+</html>

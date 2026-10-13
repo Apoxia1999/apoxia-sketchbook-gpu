@@ -1,0 +1,162 @@
+{
+  "notes": 1000,
+  "images": 7685,
+  "gpu": "ANGLE (AMD, AMD Radeon 780M Graphics (radeonsi phoenix ACO), OpenGL 4.6)",
+  "mixedOverview": {
+    "cpuMedianMs": 9.5,
+    "cpuP95Ms": 13.5,
+    "domNotes": 0,
+    "focused": false,
+    "fpsMedian": 90,
+    "hidden": false,
+    "media": {
+      "domMedia": 0,
+      "owned": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 0.09999996423721313,
+        "failed": 0,
+        "gpuBytes": 150994944,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 7685
+      },
+      "total": 8685
+    },
+    "medianMs": 11.099999999999454,
+    "p95Ms": 17.59999999999991,
+    "proxies": 1000,
+    "profile": {
+      "renderCamera": 10.719999992847443,
+      "renderConnections": 0.020000004768371583,
+      "renderNotePreviews": 9.6,
+      "renderSolidPreviews": 0.019999992847442628
+    }
+  },
+  "notesOverview": {
+    "cpuMedianMs": 14.199999988079071,
+    "cpuP95Ms": 20.69999998807907,
+    "domNotes": 0,
+    "focused": true,
+    "fpsMedian": 56,
+    "hidden": false,
+    "media": {
+      "domMedia": 1,
+      "owned": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 150994944,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 1352
+      },
+      "total": 8685
+    },
+    "medianMs": 17.80000000000109,
+    "p95Ms": 34.599999999998545,
+    "proxies": 1000,
+    "profile": {
+      "renderCamera": 11.260000002384185,
+      "renderConnections": 0.5600000023841858,
+      "renderNotePreviews": 9.319999992847443,
+      "renderSolidPreviews": 0.020000004768371583
+    }
+  },
+  "notesPreviewText": {
+    "cpuMedianMs": 27.80000001192093,
+    "cpuP95Ms": 38.39999997615814,
+    "domNotes": 0,
+    "focused": false,
+    "fpsMedian": 20,
+    "hidden": false,
+    "media": {
+      "domMedia": 0,
+      "owned": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 1.300000011920929,
+        "failed": 0,
+        "gpuBytes": 201326592,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 305
+      },
+      "total": 8685
+    },
+    "medianMs": 49.400000000001455,
+    "p95Ms": 67.89999999999964,
+    "proxies": 1000,
+    "profile": {
+      "renderCamera": 22.87999999523163,
+      "renderConnections": 0,
+      "renderNotePreviews": 50.27999999523163,
+      "renderSolidPreviews": 0.8200000047683715
+    }
+  },
+  "notesEditable": {
+    "cpuMedianMs": 9.600000023841858,
+    "cpuP95Ms": 14,
+    "domNotes": 176,
+    "focused": false,
+    "fpsMedian": 34,
+    "hidden": false,
+    "media": {
+      "domMedia": 0,
+      "owned": {
+        "cpuMs": 0,
+        "failed": 0,
+        "gpuBytes": 0,
+        "media": 0,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 0
+      },
+      "public": {
+        "cpuMs": 0.30000001192092896,
+        "failed": 0,
+        "gpuBytes": 201326592,
+        "media": 7685,
+        "originalTiles": 0,
+        "pending": 0,
+        "visible": 54
+      },
+      "total": 8685
+    },
+    "medianMs": 29.400000000001455,
+    "p95Ms": 43,
+    "proxies": 824,
+    "profile": {
+      "renderCamera": 4.679999995231628,
+      "renderConnections": 0.020000004768371583,
+      "renderNotePreviews": 2.0399999976158143,
+      "renderSolidPreviews": 0.13999999761581422
+    }
+  },
+  "errors": []
+}
