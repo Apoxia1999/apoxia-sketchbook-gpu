@@ -13,6 +13,7 @@
     await loadScript('/i18n.js');
     await window.apoxiaI18n.init();
     await loadScript('/gpu-spatial.js');
+    await loadScript('/svg-vector.js');
     await loadScript('/gpu-renderer.js');
     await loadScript('/app.js');
   } catch(error) {console.error(error);document.querySelector('#toast').textContent=error.message;document.querySelector('#toast').classList.add('show');}

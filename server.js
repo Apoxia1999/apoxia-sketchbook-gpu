@@ -29,6 +29,16 @@ const portableMedia = Boolean(process.env.APOXIA_FFMPEG);
 const maxUpload = 2 * 1024 * 1024 * 1024;
 const items = new Map();
 const deletedItems = new Map();
+const originalChecks=new Map();
+async function mediaAvailability(item){
+ if(!item.originalAvailable)return item;
+ const relative=`originals/${item.id}${item.originalExt}`,owner=storage.owner('items',item.id);
+ if(owner?.crypto&&storage.contexts.get(owner.id)?.assets?.[relative])return item;
+ let cached=originalChecks.get(item.id);
+ if(!cached||Date.now()-cached.time>30000){const stat=await fsp.stat(path.join(dataDir,relative)).catch(()=>null);cached={time:Date.now(),missing:!stat?.isFile()};originalChecks.set(item.id,cached);}
+ return {...item,originalAvailable:!cached.missing,originalMissing:cached.missing};
+}
+
 const strokes = new Map();
 const writings = new Map();
 const queue = [];
@@ -513,7 +523,11 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       try { await persist(); } catch(error) { source.connections=previous; throw error; }
       return json(res,200,{ok:true});
     }
-    if (req.method === 'GET' && pathname === '/api/items') return json(res, 200, [...items.values()].filter(o => storage.accessible('items', o.id, session)));
+    if (req.method === 'GET' && pathname === '/api/items') {
+      const visible=[...items.values()].filter(o=>storage.accessible('items',o.id,session)),result=[];
+      for(let i=0;i<visible.length;i+=64)result.push(...await Promise.all(visible.slice(i,i+64).map(mediaAvailability)));
+      return json(res,200,result);
+    }
     if (req.method === 'GET' && pathname === '/api/strokes') return json(res, 200, [...strokes.values()].filter(o => storage.accessible('strokes', o.id, session)));
     if (req.method === 'POST' && ['/api/group-scale','/api/frozen-release'].includes(pathname)) {
       const frozenRelease=pathname==='/api/frozen-release';
@@ -582,7 +596,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
             const numbers=entry.kind==='writings'?['x','y','size']:['x','y','displayWidth','displayHeight','chromeScale','textFontSize'];
             for(const key of numbers)if(key in snapshot){if(!Number.isFinite(snapshot[key])||(key!=='x'&&key!=='y'&&snapshot[key]<=0))throw Error('Geometría de copia inválida');object[key]=snapshot[key];}
             if(entry.kind==='writings'||source.type==='text'){
-              if(typeof snapshot.text==='string'&&snapshot.text.length<=(entry.kind==='writings'?5000:20000))object.text=snapshot.text;
+              if(typeof snapshot.text==='string'&&snapshot.text.length<=(entry.kind==='writings'?5000:1000000))object.text=snapshot.text;
               if(snapshot.color==='magic-gradient'&&source.type==='text'||/^#[0-9a-fA-F]{6}$/.test(snapshot.color||''))object.color=snapshot.color;
               if(typeof snapshot.backgroundHidden==='boolean'&&source.type==='text')object.backgroundHidden=snapshot.backgroundHidden;
             }
@@ -752,7 +766,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
     if (req.method === 'POST' && pathname === '/api/text/restore') {
       const item = await readJson(req, 30000);
       if (!storage.accessible('items', item.id, session)) return json(res, 404, { error: 'Contenido no disponible' });
-      if (!/^[0-9a-f-]{36}$/.test(item.id || '') || items.has(item.id) || item.type !== 'text' || ![item.x, item.y, item.displayWidth, item.displayHeight, item.textFontSize].every(Number.isFinite) || item.displayWidth < 1e-9 || item.displayHeight < 1e-9 || typeof item.text !== 'string' || item.text.length > 20000 || !(item.color === 'magic-gradient' || /^#[0-9a-fA-F]{6}$/.test(item.color))) return json(res, 400, { error: 'Nota inválida' });
+      if (!/^[0-9a-f-]{36}$/.test(item.id || '') || items.has(item.id) || item.type !== 'text' || ![item.x, item.y, item.displayWidth, item.displayHeight, item.textFontSize].every(Number.isFinite) || item.displayWidth < 1e-9 || item.displayHeight < 1e-9 || typeof item.text !== 'string' || item.text.length > 1000000 || !(item.color === 'magic-gradient' || /^#[0-9a-fA-F]{6}$/.test(item.color))) return json(res, 400, { error: 'Nota inválida' });
       if (item.vaultId) {await clearPreviewPacks();await storage.assign('items', item.id, item.vaultId, session);}
       delete item.vaultId;
       items.set(item.id, item);
@@ -895,7 +909,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
     if (match && items.has(match[1])) {
       const id = match[1], item = items.get(id);
       if (req.method === 'PATCH') {
-        const changes = await readJson(req, 20000);
+        const changes = await readJson(req, 8000000);
         if ('backgroundHidden' in changes && (item.type !== 'text' || typeof changes.backgroundHidden !== 'boolean')) return json(res, 400, { error: 'Fondo de nota inválido' });
         if ('backgroundHidden' in changes) item.backgroundHidden = changes.backgroundHidden;
         if ('locked' in changes && typeof changes.locked !== 'boolean') return json(res, 400, { error: 'Bloqueo inválido' });
@@ -922,7 +936,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
           item.displayHeight = item.displayWidth * item.height / item.width;
         }
         if ('text' in changes) {
-          if (item.type !== 'text' || typeof changes.text !== 'string' || changes.text.length > 20000) return json(res, 400, { error: 'Texto inválido' });
+          if (item.type !== 'text' || typeof changes.text !== 'string' || changes.text.length > 1000000) return json(res, 400, { error: 'Texto inválido' });
           item.text = changes.text;
         }
         if ('color' in changes) {
@@ -943,7 +957,8 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
     if (original && (req.method === 'GET' || req.method === 'HEAD')) {
       const item = items.get(original[1]);
       if (!item || !item.originalAvailable || !/^\.[a-z0-9]{1,8}$/.test(item.originalExt || '')) return json(res, 404, { error: 'Original no disponible' });
-      const contentType = ({ '.mp4': 'video/mp4', '.m4v': 'video/x-m4v', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.tif': 'image/tiff', '.tiff': 'image/tiff', '.bmp': 'image/bmp', '.heic': 'image/heic', '.heif': 'image/heif' })[item.originalExt] || 'application/octet-stream';
+      const contentType = ({ '.mp4': 'video/mp4', '.m4v': 'video/x-m4v', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.tif': 'image/tiff', '.tiff': 'image/tiff', '.bmp': 'image/bmp', '.svg': 'image/svg+xml', '.heic': 'image/heic', '.heif': 'image/heif' })[item.originalExt] || 'application/octet-stream';
+      if(item.originalExt==='.svg')res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:;");
       const privateVault = storage.owner('items', item.id);
       if (privateVault?.crypto) return await storage.serve(req, res, privateVault, `originals/${item.id}${item.originalExt}`, contentType, session, { 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(item.name)}` }, () => serveFile(req, res, path.join(originalDir, `${item.id}${item.originalExt}`), contentType, 'private, no-store', { 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(item.name)}` }));
       return serveFile(req, res, path.join(originalDir, `${item.id}${item.originalExt}`), contentType, 'private, no-cache', { 'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(item.name)}` });
@@ -955,7 +970,8 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       const item=items.get(media[1]);
       if(item.gpuOriginalOnly&&!media[2]&&media[3]==='webp'){
         const relative=`originals/${item.id}${item.originalExt}`;
-        const nativeType=({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.avif':'image/avif','.gif':'image/gif','.bmp':'image/bmp'})[item.originalExt]||'application/octet-stream';
+        if(item.originalExt==='.svg')res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:;");
+        const nativeType=({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.avif':'image/avif','.gif':'image/gif','.bmp':'image/bmp','.svg':'image/svg+xml'})[item.originalExt]||'application/octet-stream';
         if(privateVault?.crypto)return await storage.serve(req,res,privateVault,relative,nativeType,session,{},()=>serveFile(req,res,path.join(originalDir,`${item.id}${item.originalExt}`),nativeType,'private, no-store'));
         return serveFile(req,res,path.join(originalDir,`${item.id}${item.originalExt}`),nativeType,'private, no-cache');
       }
@@ -963,7 +979,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       if (privateVault?.crypto) return await storage.serve(req, res, privateVault, `media/${filename}`, type, session, {}, () => serveFile(req, res, path.join(mediaDir, filename), type, 'private, no-store'));
       return serveFile(req, res, path.join(mediaDir, filename), type, 'private, no-cache');
     }
-    const staticFiles = { '/assets/PaperMono-Regular.woff2': ['assets/PaperMono-Regular.woff2', 'font/woff2'], '/assets/paper-mono-outlines.json': ['assets/paper-mono-outlines.json', 'application/json'], '/gpu-renderer.js':['gpu-renderer.js','text/javascript; charset=utf-8'], '/gpu-worker.js':['gpu-worker.js','text/javascript; charset=utf-8'], '/gpu-spatial.js':['gpu-spatial.js','text/javascript; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'], '/locales/en.json': ['locales/en.json', 'application/json; charset=utf-8'], '/desktop-bootstrap.js': ['desktop-bootstrap.js', 'text/javascript; charset=utf-8'], '/assets/NimbusRoman-Regular.otf': ['assets/NimbusRoman-Regular.otf', 'font/otf'], '/assets/nimbus-roman-outlines.json': ['assets/nimbus-roman-outlines.json', 'application/json'], '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/vault-coordinates.js': ['vault-coordinates.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/assets/Satisfy-Regular.ttf': ['assets/Satisfy-Regular.ttf', 'font/ttf'], '/assets/satisfy-outlines.json': ['assets/satisfy-outlines.json', 'application/json; charset=utf-8'] };
+    const staticFiles = { '/assets/PaperMono-Regular.woff2': ['assets/PaperMono-Regular.woff2', 'font/woff2'], '/assets/paper-mono-outlines.json': ['assets/paper-mono-outlines.json', 'application/json'], '/gpu-renderer.js':['gpu-renderer.js','text/javascript; charset=utf-8'], '/svg-vector.js':['svg-vector.js','text/javascript; charset=utf-8'], '/svg-vector-worker.js':['svg-vector-worker.js','text/javascript; charset=utf-8'], '/gpu-worker.js':['gpu-worker.js','text/javascript; charset=utf-8'], '/gpu-spatial.js':['gpu-spatial.js','text/javascript; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'], '/locales/en.json': ['locales/en.json', 'application/json; charset=utf-8'], '/desktop-bootstrap.js': ['desktop-bootstrap.js', 'text/javascript; charset=utf-8'], '/assets/NimbusRoman-Regular.otf': ['assets/NimbusRoman-Regular.otf', 'font/otf'], '/assets/nimbus-roman-outlines.json': ['assets/nimbus-roman-outlines.json', 'application/json'], '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/vault-coordinates.js': ['vault-coordinates.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/assets/Satisfy-Regular.ttf': ['assets/Satisfy-Regular.ttf', 'font/ttf'], '/assets/satisfy-outlines.json': ['assets/satisfy-outlines.json', 'application/json; charset=utf-8'] };
     if (req.method === 'GET' && staticFiles[pathname]) return serveFile(req, res, path.join(root, staticFiles[pathname][0]), staticFiles[pathname][1]);
     json(res, 404, { error: 'No encontrado' });
   } catch (error) {

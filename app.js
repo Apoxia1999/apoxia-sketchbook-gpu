@@ -232,6 +232,7 @@ function purgeVaultMemory(vault) {
   }
   for (const id of vault.members.writings) { writings.delete(id); writingNodes.get(id)?.remove(); writingNodes.delete(id); writingLayer.querySelector(`#vault-writing-clip-${id}`)?.remove(); }
   for (const id of vault.members.strokes) { strokes.delete(id); strokeBounds.delete(id); strokeChunks.delete(id); strokeSpaces.delete(id); pendingErase.delete(id); }
+  if(noteReader.open)closeNoteReader();
   if(!canvasFind.hidden)closeCanvasFind();
   writingEditor.value = ''; selectedWriting = null; hoveredWriting = null; writingControls.hidden = true;
   writingWidthCache.clear(); writingInkCache.clear(); writingEraseMask.width = 1; writingEraseMask.height = 1;
@@ -1586,6 +1587,7 @@ const requestGPU=()=>{if(!gpuRenderFrame)gpuRenderFrame=requestAnimationFrame(()
 const photoGPU=new window.ApoxiaMediaRenderer(solidPreviewLayer,requestGPU,id=>cards.get(id)?.querySelector('video'));
 const ownedPhotoGPU=new window.ApoxiaMediaRenderer(ownedPhotoPreview,requestGPU,id=>cards.get(id)?.querySelector('video'));
 function gpuInteractive(item,card){return playingVideoId===item.id||gpuHoverId===item.id||cardPinned(card,item)||screenFrozen.has(`items:${item.id}`);}
+window.addEventListener('apoxia-svg-error',event=>{const item=items.get(event.detail.id);if(item)toast(`${item.name}: ${event.detail.message}`);});
 function gpuReady(item){return item?.type!=='text'&&item?.status==='ready';}
 function gpuPick(x,y){if(!showMedia)return null;const p=screenToWorld(x,y);return ownedPhotoGPU.hit(p.x,p.y)||photoGPU.hit(p.x,p.y);}
 function setGPUHover(id){if(gpuHoverId===id)return;const previous=gpuHoverId;gpuHoverId=id;for(const key of [previous,id]){const a=items.get(key),card=cards.get(key);if(a&&card){applyCardChrome(card,a);if(key!==id&&a.type==='video')unloadMedia(card);}}}
@@ -1609,15 +1611,28 @@ function renderSolidPreviews(){
  gpuSceneDirty=false;
  const publicRecords=[],ownedRecords=[];
  if(showMedia)for(const [id,item]of items){if(!gpuReady(item)||!vaultContentVisible('items',id))continue;const owner=vaultOwner('items',id),vault=owner?vaults.get(owner):null;let clip=null;if(vault&&!freeVaultObjectPreview('items',item)&&!screenFrozen.has(`items:${id}`)){const box=vaultInterior(vault);clip={x:box.x,y:box.y,w:box.width,h:box.height};}
- const image=item.type==='image',full=privateMediaURL(image?(item.gpuOriginalOnly&&item.originalAvailable?`/original/${id}`:`/media/${id}.webp`):`/media/${id}.jpg`,id);
- const original=privateMediaURL(item.originalAvailable?`/original/${id}`:`/media/${id}.webp`,id);
+ const image=item.type==='image',missingThumbnail=item.originalMissing&&item.gpuOriginalOnly,full=missingThumbnail?privateMediaURL(`/media/${id}-thumb.webp`,id):privateMediaURL(image?(item.gpuOriginalOnly&&item.originalAvailable?`/original/${id}`:`/media/${id}.webp`):`/media/${id}.jpg`,id);
+ const original=missingThumbnail?full:privateMediaURL(item.originalAvailable?`/original/${id}`:`/media/${id}.webp`,id);
  const browserOriginal=image&&(!item.originalAvailable||/\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(item.originalExt||''));
- const record={id,type:item.type,x:item.x,y:item.y,w:item.displayWidth||320,h:item.displayHeight||180,rank:gpuRanks.get(id)||0,clip,thumbURL:privateMediaURL(image?`/media/${id}-thumb.webp`:`/media/${id}.jpg`,id),detailURL:full,originalURL:browserOriginal?original:full,originalWidth:browserOriginal?(item.originalWidth||item.width):item.width,originalHeight:browserOriginal?(item.originalHeight||item.height):item.height,originalOnly:Boolean(item.gpuOriginalOnly)};
+ const record={id,svg:item.type==='image'&&item.originalExt==='.svg'&&!item.originalMissing,type:item.type,x:item.x,y:item.y,w:item.displayWidth||320,h:item.displayHeight||180,rank:gpuRanks.get(id)||0,clip,thumbURL:privateMediaURL(image?`/media/${id}-thumb.webp`:`/media/${id}.jpg`,id),detailURL:full,originalURL:browserOriginal?original:full,originalWidth:browserOriginal?(item.originalWidth||item.width):item.width,originalHeight:browserOriginal?(item.originalHeight||item.height):item.height,originalOnly:Boolean(item.gpuOriginalOnly),originalMissing:Boolean(item.originalMissing)};
  if(gesture?.id===id&&['card','resize'].includes(gesture.type))record.rank=Number.MAX_SAFE_INTEGER;
  (owner?ownedRecords:publicRecords).push(record);
  }
  photoGPU.sync(publicRecords);ownedPhotoGPU.sync(ownedRecords);}
- photoGPU.render(camera);ownedPhotoGPU.render(camera);
+ photoGPU.render(camera);ownedPhotoGPU.render(camera);renderMissingMediaWarnings();
+}
+const missingMediaWarnings=new Map();
+function renderMissingMediaWarnings(){
+ const visible=new Set(),a=screenToWorld(0,0),b=screenToWorld(innerWidth,innerHeight);
+ if(showMedia)for(const record of [...photoGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y),...ownedPhotoGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y)]){
+  const item=items.get(record.id);if(!item?.originalMissing||!vaultContentVisible('items',item.id)||item.displayWidth*camera.scale<40||item.displayHeight*camera.scale<30)continue;
+  if(record.clip&&(item.x<record.clip.x||item.y<record.clip.y))continue;
+  const x=camera.x+item.x*camera.scale,y=camera.y+item.y*camera.scale;if(x<0||y<0||x>innerWidth-20||y>innerHeight-20)continue;
+  visible.add(item.id);let badge=missingMediaWarnings.get(item.id);
+  if(!badge){badge=document.createElement('span');badge.className='missing-media-warning';badge.textContent='⚠';badge.title='Original desaparecido. Se muestra la copia de baja calidad.';badge.setAttribute('aria-label',badge.title);document.body.append(badge);missingMediaWarnings.set(item.id,badge);}
+  badge.style.transform=`translate(${x+4}px,${y+4}px)`;
+ }
+ for(const [id,badge]of missingMediaWarnings)if(!visible.has(id)){badge.remove();missingMediaWarnings.delete(id);}
 }
 function updateImageSources(){requestGPU();}
 function zoomAt(factor, x = innerWidth / 2, y = innerHeight / 2) {
@@ -2278,7 +2293,7 @@ function createCard(item) {
   updateCard(item);
 }
 function originalMime(item) {
-  return ({ '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.heic': 'image/heic', '.heif': 'image/heif', '.tif': 'image/tiff', '.tiff': 'image/tiff', '.bmp': 'image/bmp' })[item.originalExt?.toLowerCase()] || 'application/octet-stream';
+  return ({ '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.mkv': 'video/x-matroska', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif', '.heic': 'image/heic', '.heif': 'image/heif', '.tif': 'image/tiff', '.tiff': 'image/tiff', '.bmp': 'image/bmp', '.svg': 'image/svg+xml' })[item.originalExt?.toLowerCase()] || 'application/octet-stream';
 }
 function originalName(item) {
   return item.name.replace(/[:\\/]/g, '_');
@@ -2325,7 +2340,7 @@ function setupOriginalDrag(item, exportButton) {
 }
 async function openVideoOriginal(id){
   const current=items.get(id);
-  if(current?.type!=='video'||!vaultContentVisible('items',id))return;
+  if(!['video','image'].includes(current?.type)||!vaultContentVisible('items',id))return;
   if(!current.originalAvailable)return toast(i18n.t('El original de este vídeo no está disponible: se importó antes de conservar los archivos originales.'));
   if(window.apoxiaDesktop){
     if(!window.apoxiaDesktop.openOriginal)return toast(i18n.t('Cierra y vuelve a abrir la app para activar la apertura de vídeos.'));
@@ -2494,6 +2509,7 @@ function updateCard(item) {
   const stackKey=`${item.type}:${stackArea}:${item.createdAt||0}`;
   if(card.dataset.stackKey!==stackKey){card.dataset.stackKey=stackKey;scheduleStacking();}
   card.querySelector('.card-name').textContent = item.type === 'text' ? '' : item.name;
+  card.title=item.originalMissing?'Original desaparecido. Se muestra la copia de baja calidad.':'';
   const exportButton = card.querySelector('.export-button');
     const lockButton = card.querySelector('.reference-lock-button');
     lockButton.disabled = item.status !== 'ready';
@@ -2604,7 +2620,7 @@ function mergeItems(next) {
     items.set(item.id, item);
     const frozen=screenFrozen.get(`items:${item.id}`);
     if(frozen) { Object.assign(item,frozenGeometry(frozen)); frozen.object=item; }
-    if (!old || old.status !== item.status || old.x !== item.x || old.y !== item.y || old.displayWidth !== item.displayWidth || old.displayHeight !== item.displayHeight || old.locked !== item.locked || old.chromeScale !== item.chromeScale || old.textFontSize !== item.textFontSize || old.text !== item.text || old.color !== item.color || old.backgroundHidden !== item.backgroundHidden || old.originalAvailable !== item.originalAvailable) updateCard(item);
+    if (!old || old.status !== item.status || old.x !== item.x || old.y !== item.y || old.displayWidth !== item.displayWidth || old.displayHeight !== item.displayHeight || old.locked !== item.locked || old.chromeScale !== item.chromeScale || old.textFontSize !== item.textFontSize || old.text !== item.text || old.color !== item.color || old.backgroundHidden !== item.backgroundHidden || old.originalAvailable !== item.originalAvailable || old.originalMissing !== item.originalMissing) updateCard(item);
   }
   for (const id of [...items.keys()]) if (!seen.has(id)) removeCard(id);
   updateCount();
@@ -3454,7 +3470,7 @@ async function addFiles(files, x, y) {
   finally { canvasActions--; }
 }
 function isMediaFile(file) {
-  return /^(video|image)\//.test(file.type) || /\.(mp4|mov|mkv|webm|avi|m4v|jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif)$/i.test(file.name);
+  return /^(video|image)\//.test(file.type) || /\.(mp4|mov|mkv|webm|avi|m4v|jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif|svg)$/i.test(file.name);
 }
 async function createFileClip(file,x,y) {
   if(!window.apoxiaDesktop?.linkPickedFile) throw new Error(i18n.t('Los accesos a archivos locales requieren la app de escritorio'));
@@ -3487,7 +3503,7 @@ async function createFileClip(file,x,y) {
   remember({label:i18n.t('acceso directo creado'),undo:()=>setStrokePresent(snapshot,false),redo:()=>setStrokePresent(snapshot,true)});
 }
 const imagePrepareQueue=[],imagePrepareWorkers=[];
-function prepareNativeImage(file){return new Promise((resolve,reject)=>{imagePrepareQueue.push({file,resolve,reject});pumpPrepare();});}
+function prepareNativeImage(file){if(file.type==='image/svg+xml'||/\.svg$/i.test(file.name))return window.ApoxiaSVG.prepare(file);return new Promise((resolve,reject)=>{imagePrepareQueue.push({file,resolve,reject});pumpPrepare();});}
 function pumpPrepare(){while(imagePrepareWorkers.length<2){const state={worker:new Worker('/gpu-worker.js'),busy:false};state.worker.onmessage=async({data})=>{const task=state.task;state.busy=false;state.task=null;data.bitmap?.close();if(data.error)task.reject(Error(data.error));else{const bytes=new Uint8Array(await data.blob.arrayBuffer());let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);task.resolve({width:data.width,height:data.height,thumbnail:btoa(binary)});}pumpPrepare();};state.worker.onerror=()=>{state.task?.reject(Error('No se pudo preparar la imagen'));state.busy=false;state.task=null;pumpPrepare();};imagePrepareWorkers.push(state);}for(const state of imagePrepareWorkers){if(state.busy)continue;const task=imagePrepareQueue.shift();if(!task)continue;state.busy=true;state.task=task;state.worker.postMessage({file:task.file,size:64,prepare:true});}}
 async function addFilesImpl(files, x, y) {
   const supported = [...files].filter(isMediaFile);
@@ -3498,26 +3514,26 @@ async function addFilesImpl(files, x, y) {
   const scale = camera.scale;
   const displayWidth = Math.min(1e12, Math.max(1e-9, 320 / scale));
   const preparedImages=new Map(),preparedIndices=new Set();
-  const prepareAhead=index=>{for(let i=index;i<Math.min(index+4,supported.length);i++){const file=supported[i];if(!preparedIndices.has(i)&&(file.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|bmp)$/i.test(file.name))){preparedIndices.add(i);preparedImages.set(i,prepareNativeImage(file).catch(()=>null));}}};
+  const prepareAhead=index=>{for(let i=index;i<Math.min(index+4,supported.length);i++){const file=supported[i];if(!preparedIndices.has(i)&&(file.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|avif|bmp|svg)$/i.test(file.name))){preparedIndices.add(i);preparedImages.set(i,prepareNativeImage(file).catch(error=>(file.type==='image/svg+xml'||/\.svg$/i.test(file.name))?{error}:null));}}};
   prepareAhead(0);
   const importBatch = crypto.randomUUID();
   const columns=supported.length>100?Math.ceil(Math.sqrt(supported.length)):4;
   let cursor=0,complete=0,errors=0;
   window.__gpuImportProgress={total:supported.length,complete:0,errors:0,active:true};
   const importOne=async(index)=>{
-    const file = supported[index];
-    const type = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif)$/i.test(file.name) ? 'image' : 'video';
-    const query = new URLSearchParams({ name: file.name, type, displayWidth: String(displayWidth), chromeScale: String(1 / scale), x: String(base.x + (index % columns) * 340 / scale), y: String(base.y + Math.floor(index / columns) * 200 / scale), importBatch, batchIndex: String(index), batchX: String(base.x), batchY: String(base.y),batchColumns:String(columns) });
+    const file = supported[index],svgFile=file.type==='image/svg+xml'||/\.svg$/i.test(file.name);let vectorGeometry=null;
+    const type = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif|svg)$/i.test(file.name) ? 'image' : 'video';
+    const query = new URLSearchParams({ name: svgFile&&!/\.svg$/i.test(file.name)?file.name+'.svg':file.name, type, displayWidth: String(displayWidth), chromeScale: String(1 / scale), x: String(base.x + (index % columns) * 340 / scale), y: String(base.y + Math.floor(index / columns) * 200 / scale), importBatch, batchIndex: String(index), batchX: String(base.x), batchY: String(base.y),batchColumns:String(columns) });
     try {
       const headers={'Content-Type':'application/octet-stream'};
-      if(type==='image'){try{prepareAhead(index);const prepared=await (preparedImages.get(index)||prepareNativeImage(file));preparedImages.delete(index);prepareAhead(index+1);if(prepared&&prepared.thumbnail.length<12000){query.set('native','1');query.set('originalWidth',prepared.width);query.set('originalHeight',prepared.height);headers['X-Apoxia-Thumbnail']=prepared.thumbnail;}}catch{/* Formats unsupported by Chromium use the existing conversion pipeline. */}}
+      if(type==='image'){try{prepareAhead(index);const prepared=await (preparedImages.get(index)||prepareNativeImage(file));preparedImages.delete(index);prepareAhead(index+1);if(prepared?.error)throw prepared.error;if(svgFile&&!prepared)throw new Error('No se pudo leer el SVG. Usa contornos de segmentos rectos, sin rellenos ni efectos.');vectorGeometry=prepared?.vector;if(prepared&&prepared.thumbnail.length<12000){query.set('native','1');query.set('originalWidth',prepared.width);query.set('originalHeight',prepared.height);headers['X-Apoxia-Thumbnail']=prepared.thumbnail;}}catch(error){if(svgFile)throw error;/* Other unsupported formats use the conversion pipeline. */}}
       const linked=!!window.apoxiaDesktop?.importLinkedMedia&&localStorage.getItem('apoxia.copyMediaOnImport')==='false';
       if(type==='video'){const compatible=await browserVideoCompatible(file,linked);if(linked&&!compatible)throw new Error('Este vídeo necesita conversión. Activa Copiar media al importar.');if(compatible)query.set('nativeVideo','1');}
       let item;
       if(linked)item=await window.apoxiaDesktop.importLinkedMedia(file,query.toString(),headers);
       else{const response=await fetch(`/api/items?${query}`,{method:'POST',body:file,headers});item=await response.json();if(!response.ok)throw new Error(item.error||'No se pudo importar');}
       if (targetVault) pendingVaultImports.set(item.id, targetVault.id);
-      items.set(item.id, item); updateCard(item); updateCount();
+      items.set(item.id, item);if(vectorGeometry){try{photoGPU.svgVectors.seed(item.id,vectorGeometry);}catch(error){photoGPU.svgVectors.failed.set(item.id,error.message);toast(error.message);}}updateCard(item);updateCount();
       await reconcileVaults();
       forgetHistory();
     } catch(error){errors++;toast(`${file.name}: ${error.message}`);}
@@ -5164,6 +5180,7 @@ document.querySelector('#canvasFindPrevious').addEventListener('click',()=>{canv
 document.querySelector('#canvasFindNext').addEventListener('click',()=>{canvasFindResults=collectCanvasMatches(canvasFindInput.value);jumpCanvasFind(canvasFindIndex+1);});
 document.querySelector('#canvasFindClose').addEventListener('click',closeCanvasFind);
 window.addEventListener('keydown',event=>{
+  if(noteReader.open)return;
   if((event.ctrlKey||event.metaKey)&&!event.altKey&&event.key.toLowerCase()==='f'){
     event.preventDefault();event.stopImmediatePropagation();if(clearDialog.open||gesture||canvasTransferBusy)return;
     if(!showTexts)setTextsVisible(true);
@@ -5190,6 +5207,37 @@ async function toggleCanvasLock(){
   try{await apply(true);remember({label:'bloqueo',undo:()=>apply(false),redo:()=>apply(true)});}
   catch(error){try{await apply(false);}catch(rollbackError){console.error(rollbackError);}toast(error.message);}finally{canvasLockBusy=false;canvasActions--;}
 }
+const noteReader=document.createElement('dialog');noteReader.className='note-reader';
+noteReader.innerHTML='<header><span>Lectura de nota</span><output>0%</output><button type="button" aria-label="Cerrar lectura">Cerrar · Esc</button></header><div class="note-reader-scroll" tabindex="0"><textarea aria-label="Texto de la nota" spellcheck="false"></textarea></div>';
+document.body.append(noteReader);
+const noteReaderScroll=noteReader.querySelector('.note-reader-scroll'),noteReaderText=noteReader.querySelector('textarea'),noteReaderPercent=noteReader.querySelector('output');
+let noteReaderId=null,noteReaderSaveTimer,noteReaderEditTimer,noteReaderBefore='',noteReaderDirty=false,noteReaderWrite=Promise.resolve();const privateReadingPositions=new Map();
+function readerPosition(){const max=noteReaderScroll.scrollHeight-noteReaderScroll.clientHeight;return max>0?noteReaderScroll.scrollTop/max:0;}
+function saveReaderPosition(){clearTimeout(noteReaderSaveTimer);if(!noteReaderId)return;const value=readerPosition();if(vaultOwner('items',noteReaderId))privateReadingPositions.set(noteReaderId,value);else try{localStorage.setItem('apoxia.reading.'+noteReaderId,String(value));}catch{}}
+function resizeReaderEditor(){const top=noteReaderScroll.scrollTop;noteReaderText.style.height='0px';noteReaderText.style.height=noteReaderText.scrollHeight+'px';noteReaderScroll.scrollTop=top;}
+function flushReaderEdit(){clearTimeout(noteReaderEditTimer);if(!noteReaderDirty||!noteReaderId)return noteReaderWrite;const id=noteReaderId,text=noteReaderText.value;noteReaderDirty=false;noteReaderWrite=noteReaderWrite.then(()=>patchItem(id,{text})).catch(()=>toast('No se pudo guardar el texto de la nota'));return noteReaderWrite;}
+noteReaderText.addEventListener('input',()=>{const item=items.get(noteReaderId);if(!item||noteReaderText.readOnly)return;item.text=noteReaderText.value;const editor=cards.get(item.id)?.querySelector('textarea');if(editor)editor.value=item.text;noteReaderDirty=true;resizeReaderEditor();noteReaderPercent.textContent=Math.round(readerPosition()*100)+'%';noteGPUSceneDirty=true;noteTextLayouts.delete(item.id);scheduleNotePreviewRender();clearTimeout(noteReaderEditTimer);noteReaderEditTimer=setTimeout(flushReaderEdit,450);});
+window.addEventListener('resize',()=>{if(noteReader.open)resizeReaderEditor();});
+function closeNoteReader(){if(!noteReader.open)return;saveReaderPosition();flushReaderEdit();const id=noteReaderId,before=noteReaderBefore,after=noteReaderText.value;if(before!==after)remember({label:'texto de nota',undo:()=>applyItemChanges(id,{text:before}),redo:()=>applyItemChanges(id,{text:after})});noteReader.close();noteReaderText.value='';noteReaderId=null;}
+
+noteReader.querySelector('button').addEventListener('click',closeNoteReader);
+noteReader.addEventListener('cancel',event=>{event.preventDefault();closeNoteReader();});
+noteReaderScroll.addEventListener('scroll',()=>{noteReaderPercent.textContent=Math.round(readerPosition()*100)+'%';clearTimeout(noteReaderSaveTimer);noteReaderSaveTimer=setTimeout(saveReaderPosition,200);},{passive:true});
+window.addEventListener('pagehide',saveReaderPosition);
+function previewUnderPointer(){
+ const p=screenToWorld(pointerPosition.x,pointerPosition.y);
+ const hit=(showTexts&&(ownedNoteGPU.hit(p.x,p.y)||noteGPU.hit(p.x,p.y)))||gpuPick(pointerPosition.x,pointerPosition.y),item=hit&&items.get(hit.id);
+ if(!item||!vaultContentVisible('items',item.id))return;
+ if(item.type!=='text'){openVideoOriginal(item.id);return;}
+ if(!canvasFind.hidden)closeCanvasFind();
+ noteReaderId=item.id;noteReader.dataset.id=item.id;setNoteColor(noteReader,item.color);noteReader.classList.toggle('reader-hidden-background',Boolean(item.backgroundHidden));noteReaderText.value=cards.get(item.id)?.querySelector('textarea')?.value??item.text??'';noteReaderBefore=noteReaderText.value;noteReaderDirty=false;noteReaderText.readOnly=Boolean(item.locked);
+ let position=0;if(vaultOwner('items',item.id))position=privateReadingPositions.get(item.id)||0;else try{position=Number(localStorage.getItem('apoxia.reading.'+item.id))||0;}catch{}
+ noteReader.showModal();resizeReaderEditor();noteReaderScroll.scrollTop=Math.min(1,Math.max(0,position))*Math.max(0,noteReaderScroll.scrollHeight-noteReaderScroll.clientHeight);noteReaderPercent.textContent=Math.round(readerPosition()*100)+'%';noteReaderScroll.focus();
+}
+window.addEventListener('keydown',event=>{
+ if(!noteReader.open)return;
+ event.stopImmediatePropagation();if(event.key==='Escape'||(event.code==='Space'&&event.target!==noteReaderText)){event.preventDefault();if(!event.repeat)closeNoteReader();}
+},{capture:true});
 function editingText(target) { return target instanceof Element && Boolean(target.closest('input,textarea,[contenteditable="true"]')); }
 let hoverDeleteBusy=false;
 async function setSelectionPresent(entries, present) {
@@ -5298,11 +5346,7 @@ window.addEventListener('keydown', event => {
   if (event.key==='Alt' && zHeld) { inverseZoomHeld=true; updateZoomCursor(); }
   if (event.code === 'Space' && !event.ctrlKey && !event.metaKey && !editingText(event.target) && !clearDialog.open) {
     event.preventDefault();
-    if (!spaceHeld && !gesture && mode !== 'pan') {
-      modeBeforeSpace = mode;
-      setMode('pan', false);
-    }
-    spaceHeld = true;
+    if(!event.repeat&&!gesture)previewUnderPointer();
     return;
   }
   if (event.key.toLowerCase()==='f' && !event.altKey && !event.ctrlKey && !event.metaKey && !editingText(event.target) && !clearDialog.open) {
@@ -5465,6 +5509,7 @@ resetFpsCounter();
 window.apoxiaPrepareQuit=async () => {
   if(!window.apoxiaDesktop) return;
   document.body.style.pointerEvents='none';
+  if(noteReader.open){saveReaderPosition();await flushReaderEdit();}
   if(gesture) await endGesture({type:'pointercancel',pointerId:gesture.pointer});
   await finishWritingEdit(true);
   for(const [id,timer] of textTimers) {

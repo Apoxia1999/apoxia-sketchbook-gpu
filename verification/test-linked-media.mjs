@@ -27,6 +27,9 @@ try{
  response=await request('/original/'+item.id,{headers:{Range:'bytes=0-15'}});assert.equal(response.status,206);assert.equal((await response.arrayBuffer()).byteLength,16);
  await stop();base=await start();assert.equal((await(await request('/api/items')).json())[0].nativeVideo,true);assert.equal((await request('/original/'+item.id)).status,200);
  await stop();
+ await fs.rename(original,original+'.moved');base=await start();
+ const missing=(await(await request('/api/items')).json())[0];assert.equal(missing.originalMissing,true);assert.equal(missing.originalAvailable,false);assert.equal(missing.status,'ready');assert.equal((await request('/media/'+item.id+'.jpg')).status,200);
+ await stop();await fs.rename(original+'.moved',original);base=await start();assert.equal((await(await request('/api/items')).json())[0].originalMissing,false);await stop();
  const zip=path.join(root,'backup.zip');await archive.exportZip(data,zip,{format:'apoxia-sketchbook',version:1,includeLinks:false,links:{}},{},()=>{});
  await fs.mkdir(path.join(root,'unpacked'));
  const extracted=await archive.extractZip(zip,path.join(root,'unpacked'),()=>{});assert.deepEqual(await fs.readFile(path.join(extracted.data,'originals',item.id+'.mp4')),source);assert(!(await fs.lstat(path.join(extracted.data,'originals',item.id+'.mp4'))).isSymbolicLink());

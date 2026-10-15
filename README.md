@@ -42,7 +42,7 @@ Solo una instancia puede escribir en una biblioteca a la vez.
 
 Estas herramientas reutilizan la lógica de la app anterior. Las imágenes y los vídeos pasan al renderizador GPU; las notas inactivas también usan atlas GPU; dibujo y Scribe mantienen sus capas especializadas. Esta es una arquitectura híbrida, no una reescritura de todas las herramientas con shaders.
 
-En el modo normal, arrastrar sobre un área vacía crea una selección rectangular de imágenes, vídeos, notas y texto Scribe. La selección se mueve en grupo y admite deshacer. Los garabatos solo se seleccionan con Magic Laser. Espacio o el botón central siguen moviendo el canvas; Escape cancela el rectángulo o libera la selección.
+En el modo normal, arrastrar sobre un área vacía crea una selección rectangular de imágenes, vídeos, notas y texto Scribe. La selección se mueve en grupo y admite deshacer. Los garabatos solo se seleccionan con Magic Laser. Espacio previsualiza el original de imágenes y vídeos o abre el lector de notas a pantalla completa, con porcentaje y posición de lectura guardada. El botón central mueve el canvas; Escape cancela el rectángulo o libera la selección.
 
 Ctrl + arrastrar duplica fotos, vídeos, notas y textos Scribe y mueve las copias. Ctrl+C / Ctrl+V copia y pega el objeto o la selección, conservando sus propiedades; los originales de imagen y vídeo se copian sin recomprimir. Las duplicaciones admiten deshacer/rehacer y conservan la pertenencia a Vaults. Al editar texto se mantienen los atajos normales del editor.
 
@@ -105,3 +105,11 @@ Electron abrió un proyecto de prueba con WebGL y habilitó las herramientas de 
 Las nuevas pruebas de notas mantienen el límite de FPS del navegador y cierran su sesión automáticamente. `--uncapped` permite medir capacidad máxima y `--keep-open` deja la sesión abierta solo si se solicita explícitamente.
 
 Los datos y capturas de prueba son locales. No se envían fotos a servicios externos.
+
+## SVG de contornos en GPU
+
+Añadir archivos y arrastrar al canvas aceptan SVG de contornos con segmentos rectos (M/L/H/V/Z, también relativos, líneas y polilíneas), sin rellenos y con extremos y uniones redondos. El original se conserva como un único objeto que se puede mover, escalar, bloquear, duplicar y guardar en Vaults. Los SVG con curvas, transformaciones, rellenos, efectos o estilos no soportados se rechazan con un aviso.
+
+La geometría se prepara en un worker y se carga una sola vez en buffers GPU. Al mover o ampliar solo cambia la transformación; no se generan imágenes por fragmentos. A distancia se usa una simplificación de tolerancia 0,7 unidades, solo si el error proyectado no supera 0,45 píxeles físicos; al acercarse se utiliza la geometría original. El antialias puede diferir ligeramente del rasterizador SVG nativo. La miniatura rasterizada se usa únicamente mientras se prepara la geometría o si falta el original. Al cerrar una Vault se cancelan las cargas y se libera su geometría.
+
+La prueba `verification/test-svg-vector.cjs` usa Playwright y una biblioteca temporal: comprueba importación, recarga, detalle, capas con imágenes, arrastre y tamaño reales, deshacer/rehacer y cancelación de cargas al cerrar Vaults. Acepta el SVG `daytime-contornos/contornos.svg` como argumento; sin argumento genera un ejemplo de prueba. `PLAYWRIGHT_MODULE` y `CHROME_BIN` permiten utilizar instalaciones existentes. Las pruebas geométricas se ejecutan con `npm test`.

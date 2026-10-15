@@ -13,7 +13,7 @@
     "pack": "electron-builder --dir --publish never",
     "dist:win:installer": "electron-builder --win nsis portable --x64 --publish never",
     "share:lan": "node scripts/share-lan.mjs",
-    "test": "node --test spatial.test.mjs"
+    "test": "node --test spatial.test.mjs svg-vector.test.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -51,6 +51,8 @@
       "package.json",
       "build/icon.png",
       "gpu-renderer.js",
+      "svg-vector.js",
+      "svg-vector-worker.js",
       "gpu-worker.js",
       "gpu-spatial.js"
     ],

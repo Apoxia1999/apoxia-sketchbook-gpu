@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=ApoxiaGPUSketchbook
+Comment=Canvas GPU para imágenes, notas y dibujos
+Exec=/usr/bin/env APOXIA_GPU_DATA_DIR=/home/apoxia/Work/apoxia-sketchbook-gpu/data /home/apoxia/Work/apoxia-sketchbook-gpu/node_modules/electron/dist/electron /home/apoxia/Work/apoxia-sketchbook-gpu
+Path=/home/apoxia/Work/apoxia-sketchbook-gpu
+Icon=/home/apoxia/Work/apoxia-sketchbook-gpu/build/icon.png
+Terminal=false
+Categories=Graphics;Utility;
+StartupWMClass=Apoxia SketchBook GPU
