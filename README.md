@@ -44,7 +44,7 @@ Estas herramientas reutilizan la lógica de la app anterior. Las imágenes y los
 
 En el modo normal, arrastrar sobre un área vacía crea una selección rectangular de imágenes, vídeos, notas y texto Scribe. La selección se mueve en grupo y admite deshacer. Los garabatos solo se seleccionan con Magic Laser. Espacio previsualiza el original de imágenes y vídeos o abre el lector de notas a pantalla completa, con porcentaje y posición de lectura guardada. El botón central mueve el canvas; Escape cancela el rectángulo o libera la selección.
 
-Ctrl + arrastrar duplica fotos, vídeos, notas y textos Scribe y mueve las copias. Ctrl+C / Ctrl+V copia y pega el objeto o la selección, conservando sus propiedades; los originales de imagen y vídeo se copian sin recomprimir. Las duplicaciones admiten deshacer/rehacer y conservan la pertenencia a Vaults. Al editar texto se mantienen los atajos normales del editor.
+Ctrl + arrastrar duplica fotos, vídeos, notas y textos Scribe y mueve las copias. Ctrl+C / Ctrl+V copia y pega el objeto o la selección, conservando sus propiedades; los originales de imagen y vídeo se copian sin recomprimir. Las duplicaciones admiten deshacer/rehacer y conservan la pertenencia a Vaults. Al editar texto se mantienen los atajos normales del editor. Ctrl+C con el cursor sobre una nota, un texto Scribe o una imagen copia su contenido al portapapeles del sistema (las imágenes como PNG), además de permitir pegar el objeto dentro del lienzo. El objeto bajo el cursor tiene prioridad sobre una selección anterior; si forma parte de una selección múltiple, se copia esa selección.
 
 ## Tema Paper y notas
 
@@ -113,3 +113,13 @@ Añadir archivos y arrastrar al canvas aceptan SVG de contornos con segmentos re
 La geometría se prepara en un worker y se carga una sola vez en buffers GPU. Al mover o ampliar solo cambia la transformación; no se generan imágenes por fragmentos. A distancia se usa una simplificación de tolerancia 0,7 unidades, solo si el error proyectado no supera 0,45 píxeles físicos; al acercarse se utiliza la geometría original. El antialias puede diferir ligeramente del rasterizador SVG nativo. La miniatura rasterizada se usa únicamente mientras se prepara la geometría o si falta el original. Al cerrar una Vault se cancelan las cargas y se libera su geometría.
 
 La prueba `verification/test-svg-vector.cjs` usa Playwright y una biblioteca temporal: comprueba importación, recarga, detalle, capas con imágenes, arrastre y tamaño reales, deshacer/rehacer y cancelación de cargas al cerrar Vaults. Acepta el SVG `daytime-contornos/contornos.svg` como argumento; sin argumento genera un ejemplo de prueba. `PLAYWRIGHT_MODULE` y `CHROME_BIN` permiten utilizar instalaciones existentes. Las pruebas geométricas se ejecutan con `npm test`.
+
+Las pruebas `verification/test-hover-clipboard.cjs` y `verification/test-desktop-clipboard.cjs` verifican los atajos reales y el portapapeles del sistema en navegador y Electron con bibliotecas temporales. Requieren Playwright y sustituyen el contenido del portapapeles por sus datos de prueba. Se pueden indicar `PLAYWRIGHT_MODULE`, `CHROME_BIN` o `ELECTRON_BIN` para usar instalaciones existentes.
+
+X elimina únicamente el objeto visible superior bajo el cursor, siguiendo las capas de notas, textos Scribe, dibujos y media y el orden de renderizado de cada capa. Supr y Retroceso siguen borrando la selección. Ctrl+V centra el objeto o el conjunto copiado en la posición del ratón, conservando la distribución del grupo y el nivel de zoom.
+
+## Recortar imágenes con Alt
+
+Mantén Alt sobre una imagen y arrastra un borde o una esquina para recortar. El original se muestra atenuado fuera del marco y los controles normales se ocultan temporalmente. Soltar el ratón aplica el cambio; Esc lo cancela y Ctrl+Z / Ctrl+Y permiten deshacer y rehacer. Al ampliar un borde más allá del original se restaura la imagen completa, sin recorte. Sin Alt los bordes siguen cambiando el tamaño, respetando la proporción de la parte visible.
+
+El original no se modifica: el recorte se guarda como coordenadas normalizadas, se aplica en GPU y se conserva al duplicar, pegar, guardar y usar Vaults. Ctrl+C copia al portapapeles solo la región visible, mientras la descarga del original sigue conservando el archivo completo. Los SVG de contornos siguen siendo vectores. `npm test` comprueba la geometría; `verification/test-image-crop.cjs` verifica los gestos, píxeles, recuperación, historial, copia y persistencia en una biblioteca temporal.

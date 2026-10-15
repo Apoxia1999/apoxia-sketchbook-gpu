@@ -99,11 +99,11 @@ precision highp float;layout(location=0) in vec4 segment;uniform vec2 viewport;u
 out vec2 local;flat out float segmentLength;flat out float radius;
 void main(){vec2 a=(segment.xy-sourceOrigin)*objectCamera.zw+objectCamera.xy,delta=(segment.zw-segment.xy)*objectCamera.zw;float len=length(delta);vec2 direction=len>0.?delta/len:vec2(1.,0.),normal=vec2(-direction.y,direction.x);float r=penWidth*objectCamera.z*.5,pad=r+1.;float along=(gl_VertexID==1||gl_VertexID==3)?len+pad:-pad;float across=gl_VertexID>=2?pad:-pad;vec2 screen=a+direction*along+normal*across;gl_Position=vec4(screen.x/viewport.x*2.-1.,1.-screen.y/viewport.y*2.,0,1);local=vec2(along,across);segmentLength=len;radius=r;}`);
       const fragment = compileShader(gl.FRAGMENT_SHADER, `#version 300 es
-precision highp float;in vec2 local;flat in float segmentLength;flat in float radius;uniform vec3 ink;out vec4 color;
-void main(){float distanceToLine=length(vec2(local.x-clamp(local.x,0.,segmentLength),local.y));float aa=max(fwidth(distanceToLine),.00001),alpha=1.-smoothstep(radius-aa*.5,radius+aa*.5,distanceToLine);if(alpha<=0.)discard;color=vec4(ink,alpha);}`);
+precision highp float;in vec2 local;flat in float segmentLength;flat in float radius;uniform vec3 ink;uniform float inkOpacity;out vec4 color;
+void main(){float distanceToLine=length(vec2(local.x-clamp(local.x,0.,segmentLength),local.y));float aa=max(fwidth(distanceToLine),.00001),alpha=1.-smoothstep(radius-aa*.5,radius+aa*.5,distanceToLine);if(alpha<=0.)discard;color=vec4(ink,alpha*inkOpacity);}`);
       const program = gl.createProgram(); gl.attachShader(program, vertex); gl.attachShader(program, fragment); gl.linkProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment);
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
-      this.program = program; this.locations = Object.fromEntries(['viewport', 'objectCamera', 'sourceOrigin', 'penWidth', 'ink'].map(name => [name, gl.getUniformLocation(program, name)]));
+      this.program = program; this.locations = Object.fromEntries(['viewport', 'objectCamera', 'sourceOrigin', 'penWidth', 'ink','inkOpacity'].map(name => [name, gl.getUniformLocation(program, name)]));
     }
     seed(id, geometry) {
       const gl = this.gl; this.remove(id); this.init();
@@ -140,12 +140,13 @@ void main(){float distanceToLine=length(vec2(local.x-clamp(local.x,0.,segmentLen
     sync(models) {
       for (const id of [...this.entries.keys(), ...this.pending.keys(), ...this.failed.keys()]) if (!models.get(id)?.svg) this.remove(id);
     }
-    draw(model, camera, dpr) {
+    draw(model, camera, dpr, opacity=1) {
       const entry = this.entries.get(model.id); if (!entry) return;
       const gl = this.gl, sx = model.w / entry.width * camera.scale, sy = model.h / entry.height * camera.scale;
       const level = entry.tolerance * Math.max(sx, sy) * dpr <= .45 ? 1 : 0;
       const x=camera.x+model.x*camera.scale,y=camera.y+model.y*camera.scale,originX=Math.floor((innerWidth/2-x)/sx),originY=Math.floor((innerHeight/2-y)/sy);
       gl.useProgram(this.program); gl.uniform2f(this.locations.viewport, innerWidth, innerHeight); gl.uniform2f(this.locations.sourceOrigin,originX,originY); gl.uniform4f(this.locations.objectCamera,x+originX*sx,y+originY*sy,sx,sy);
+      gl.uniform1f(this.locations.inkOpacity,opacity);
       this.selectedSegments = 0;
       for (const group of entry.groups) {
         const buffer = group.levels[level]; gl.uniform1f(this.locations.penWidth, group.width); gl.uniform3fv(this.locations.ink, group.color); gl.bindVertexArray(buffer.vao); gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, buffer.segments); this.drawCalls++; this.selectedSegments += buffer.segments;

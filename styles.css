@@ -596,3 +596,13 @@ button:focus-visible{outline-color:var(--theme-accent)}
 @media(prefers-reduced-motion:reduce){.note-reader.note-magic{animation:none}}
 
 .note-reader textarea{display:block;box-sizing:border-box;width:100%;min-height:200px;border:0;resize:none;overflow:hidden;background:transparent;color:inherit;outline:none;border-radius:0}
+
+/* Temporary Alt crop frame; the original is drawn dimmed by the GPU. */
+#imageCropOutline{position:fixed;inset:0;width:100%;height:100%;z-index:8;pointer-events:none;overflow:hidden}
+#imageCropOutline path{fill:none;stroke:var(--accent,#80aaf0);stroke-width:2;stroke-linecap:square}
+#viewport[data-crop-edge="n"],#viewport[data-crop-edge="s"],#viewport[data-crop-edge="n"] .video-frame,#viewport[data-crop-edge="s"] .video-frame{cursor:ns-resize!important}
+#viewport[data-crop-edge="e"],#viewport[data-crop-edge="w"],#viewport[data-crop-edge="e"] .video-frame,#viewport[data-crop-edge="w"] .video-frame{cursor:ew-resize!important}
+#viewport[data-crop-edge="ne"],#viewport[data-crop-edge="sw"],#viewport[data-crop-edge="ne"] .video-frame,#viewport[data-crop-edge="sw"] .video-frame{cursor:nesw-resize!important}
+#viewport[data-crop-edge="nw"],#viewport[data-crop-edge="se"],#viewport[data-crop-edge="nw"] .video-frame,#viewport[data-crop-edge="se"] .video-frame{cursor:nwse-resize!important}
+
+#viewport.image-crop-alt .image-card .media-actions,#viewport.image-crop-alt .image-card .resize-handle,#viewport.image-crop-alt .connection-port{display:none!important}

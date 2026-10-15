@@ -395,5 +395,8 @@
   "Copiar media al importar": "Copy media on import",
   "Copiar media a DATA": "Copy media to DATA",
   "Media copiada a DATA": "Media copied to DATA",
-  "Desactivado: usar el archivo original sin copiarlo. Se guardan miniaturas para el canvas.": "Off: use the original file without copying it. Canvas thumbnails are saved."
+  "Desactivado: usar el archivo original sin copiarlo. Se guardan miniaturas para el canvas.": "Off: use the original file without copying it. Canvas thumbnails are saved.",
+  "Imagen copiada al portapapeles": "Image copied to clipboard",
+  "Copiado dentro del lienzo. No se pudo copiar al portapapeles del sistema.": "Copied within the canvas. Could not copy to the system clipboard.",
+  "recorte de imagen": "image crop"
 }

@@ -1,4 +1,6 @@
 import http from 'node:http';
+import './image-crop.js';
+const Crop=globalThis.ApoxiaCrop;
 import {AsyncLocalStorage} from 'node:async_hooks';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -593,6 +595,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
           const object=structuredClone(source);object.id=ids.get(`${entry.kind}:${entry.id}`);object.locked=false;object.createdAt=Date.now();delete object.deleted;delete object.importBatch;delete object.vaultId;
           const snapshot=entry.snapshot;
           if(snapshot){
+            if('crop' in snapshot){if(source.type!=='image')throw Error('Recorte inválido');object.crop=Crop.normalize(snapshot.crop);}
             const numbers=entry.kind==='writings'?['x','y','size']:['x','y','displayWidth','displayHeight','chromeScale','textFontSize'];
             for(const key of numbers)if(key in snapshot){if(!Number.isFinite(snapshot[key])||(key!=='x'&&key!=='y'&&snapshot[key]<=0))throw Error('Geometría de copia inválida');object[key]=snapshot[key];}
             if(entry.kind==='writings'||source.type==='text'){
@@ -913,7 +916,10 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
         if ('backgroundHidden' in changes && (item.type !== 'text' || typeof changes.backgroundHidden !== 'boolean')) return json(res, 400, { error: 'Fondo de nota inválido' });
         if ('backgroundHidden' in changes) item.backgroundHidden = changes.backgroundHidden;
         if ('locked' in changes && typeof changes.locked !== 'boolean') return json(res, 400, { error: 'Bloqueo inválido' });
-        const geometryChanged = ['x', 'y', 'displayWidth', 'displayHeight', 'chromeScale', 'textFontSize'].some(key => key in changes);
+        const cropChanged='crop' in changes;
+        if(cropChanged&&(item.type!=='image'))return json(res,400,{error:'Solo las imágenes admiten recorte'});
+        const nextCrop=cropChanged?Crop.normalize(changes.crop):item.crop;
+        const geometryChanged = ['crop', 'x', 'y', 'displayWidth', 'displayHeight', 'chromeScale', 'textFontSize'].some(key => key in changes);
         if (item.locked && changes.locked !== false && geometryChanged) return json(res, 409, { error: 'Desbloquea la referencia para moverla o cambiar su tamaño' });
         for (const key of ['chromeScale', 'textFontSize']) {
           if (key in changes && (item.type !== 'text' || !Number.isFinite(changes[key]) || changes[key] < 1e-12 || changes[key] > 1e12)) return json(res, 400, { error: 'Escala de nota inválida' });
@@ -925,15 +931,16 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
           }
         }
         for (const key of ['chromeScale', 'textFontSize']) if (key in changes) item[key] = changes[key];
+        if(cropChanged)item.crop=nextCrop;
         // User positioning takes precedence over automatic import placement.
-        if (['x', 'y', 'displayWidth', 'displayHeight'].some(key => key in changes)) delete item.importBatch;
+        if (['crop','x', 'y', 'displayWidth', 'displayHeight'].some(key => key in changes)) delete item.importBatch;
         if ('locked' in changes) {
           item.locked = changes.locked;
           if (item.locked) delete item.importBatch;
         }
-        if (item.type !== 'text' && item.width && item.height && ('displayWidth' in changes || 'displayHeight' in changes)) {
-          if (!('displayWidth' in changes)) item.displayWidth = item.displayHeight * item.width / item.height;
-          item.displayHeight = item.displayWidth * item.height / item.width;
+        if (item.type !== 'text' && item.width && item.height && ('displayWidth' in changes || 'displayHeight' in changes || cropChanged)) {
+          if (!('displayWidth' in changes)&&'displayHeight' in changes) item.displayWidth = item.displayHeight * Crop.aspect(item);
+          item.displayHeight = item.displayWidth / Crop.aspect(item);
         }
         if ('text' in changes) {
           if (item.type !== 'text' || typeof changes.text !== 'string' || changes.text.length > 1000000) return json(res, 400, { error: 'Texto inválido' });
@@ -979,7 +986,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       if (privateVault?.crypto) return await storage.serve(req, res, privateVault, `media/${filename}`, type, session, {}, () => serveFile(req, res, path.join(mediaDir, filename), type, 'private, no-store'));
       return serveFile(req, res, path.join(mediaDir, filename), type, 'private, no-cache');
     }
-    const staticFiles = { '/assets/PaperMono-Regular.woff2': ['assets/PaperMono-Regular.woff2', 'font/woff2'], '/assets/paper-mono-outlines.json': ['assets/paper-mono-outlines.json', 'application/json'], '/gpu-renderer.js':['gpu-renderer.js','text/javascript; charset=utf-8'], '/svg-vector.js':['svg-vector.js','text/javascript; charset=utf-8'], '/svg-vector-worker.js':['svg-vector-worker.js','text/javascript; charset=utf-8'], '/gpu-worker.js':['gpu-worker.js','text/javascript; charset=utf-8'], '/gpu-spatial.js':['gpu-spatial.js','text/javascript; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'], '/locales/en.json': ['locales/en.json', 'application/json; charset=utf-8'], '/desktop-bootstrap.js': ['desktop-bootstrap.js', 'text/javascript; charset=utf-8'], '/assets/NimbusRoman-Regular.otf': ['assets/NimbusRoman-Regular.otf', 'font/otf'], '/assets/nimbus-roman-outlines.json': ['assets/nimbus-roman-outlines.json', 'application/json'], '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/vault-coordinates.js': ['vault-coordinates.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/assets/Satisfy-Regular.ttf': ['assets/Satisfy-Regular.ttf', 'font/ttf'], '/assets/satisfy-outlines.json': ['assets/satisfy-outlines.json', 'application/json; charset=utf-8'] };
+    const staticFiles = { '/assets/PaperMono-Regular.woff2': ['assets/PaperMono-Regular.woff2', 'font/woff2'], '/assets/paper-mono-outlines.json': ['assets/paper-mono-outlines.json', 'application/json'], '/gpu-renderer.js':['gpu-renderer.js','text/javascript; charset=utf-8'], '/image-crop.js':['image-crop.js','text/javascript; charset=utf-8'], '/svg-vector.js':['svg-vector.js','text/javascript; charset=utf-8'], '/svg-vector-worker.js':['svg-vector-worker.js','text/javascript; charset=utf-8'], '/gpu-worker.js':['gpu-worker.js','text/javascript; charset=utf-8'], '/gpu-spatial.js':['gpu-spatial.js','text/javascript; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'], '/locales/en.json': ['locales/en.json', 'application/json; charset=utf-8'], '/desktop-bootstrap.js': ['desktop-bootstrap.js', 'text/javascript; charset=utf-8'], '/assets/NimbusRoman-Regular.otf': ['assets/NimbusRoman-Regular.otf', 'font/otf'], '/assets/nimbus-roman-outlines.json': ['assets/nimbus-roman-outlines.json', 'application/json'], '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/vault-coordinates.js': ['vault-coordinates.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/assets/Satisfy-Regular.ttf': ['assets/Satisfy-Regular.ttf', 'font/ttf'], '/assets/satisfy-outlines.json': ['assets/satisfy-outlines.json', 'application/json; charset=utf-8'] };
     if (req.method === 'GET' && staticFiles[pathname]) return serveFile(req, res, path.join(root, staticFiles[pathname][0]), staticFiles[pathname][1]);
     json(res, 404, { error: 'No encontrado' });
   } catch (error) {

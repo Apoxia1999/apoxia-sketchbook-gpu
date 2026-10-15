@@ -12,6 +12,7 @@
   try {
     await loadScript('/i18n.js');
     await window.apoxiaI18n.init();
+    await loadScript('/image-crop.js');
     await loadScript('/gpu-spatial.js');
     await loadScript('/svg-vector.js');
     await loadScript('/gpu-renderer.js');

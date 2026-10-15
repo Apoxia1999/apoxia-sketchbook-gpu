@@ -126,7 +126,7 @@ function installMenu() {
       { label: t('Importar copia de un canvas…'), click: () => importCanvas().catch(error => dialog.showErrorBox(t('Importar canvas'), error.message)) },
       { type: 'separator' }, { label: t('Salir'), accelerator: 'CmdOrCtrl+Q', click: () => app.quit() },
     ] },
-    { label: t('Editar'), submenu: [{ role: 'undo',label:t('Deshacer') }, { role: 'redo',label:t('Rehacer') }, { type: 'separator' }, { role: 'cut',label:t('Cortar') }, { role: 'copy',label:t('Copiar') }, { role: 'paste',label:t('Pegar') }, { role: 'selectAll',label:t('Seleccionar todo') }] },
+    { label: t('Editar'), submenu: [{ role: 'undo',label:t('Deshacer') }, { role: 'redo',label:t('Rehacer') }, { type: 'separator' }, { role: 'cut',label:t('Cortar') }, { role: 'copy',label:t('Copiar') }, { id:'paste-canvas',label:t('Pegar'),accelerator:'CmdOrCtrl+V',click:()=>window.webContents.send('desktop:paste-command') }, { role: 'selectAll',label:t('Seleccionar todo') }] },
     { label: t('Ver'), submenu: [{ role: 'togglefullscreen',label:t('Pantalla completa') }, { role: 'reload',label:t('Recargar') }, ...(!app.isPackaged ? [{ role: 'toggleDevTools',label:t('Herramientas de desarrollo') }] : [])] },
     { label: t('Ayuda'), submenu: [{ label: t('Acerca de Apoxia SketchBook'), click: () => dialog.showMessageBox(window, { title: 'Apoxia SketchBook', message: `Apoxia SketchBook ${app.getVersion()}`, detail: t('Canvas local · Magic Laser · Vaults cifradas\nTus datos se guardan en este ordenador.') }) }] },
   ]));
@@ -254,6 +254,7 @@ ipcMain.handle('desktop:open-original', async (event, id) => {
     throw new Error(t('Ruta del original inválida.'));
   await openLocalFile(file);
 });
+ipcMain.handle('desktop:paste-native',event=>{trusted(event);window.webContents.paste();});
 ipcMain.handle('desktop:show-canvas-folder', async event => { trusted(event); return shell.openPath(canvasDir); });
 ipcMain.handle('desktop:restore-preferences', event => { trusted(event); return preferences; });
 ipcMain.handle('desktop:set-language', async (event, language) => {
