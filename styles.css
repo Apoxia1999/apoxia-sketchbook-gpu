@@ -606,3 +606,15 @@ button:focus-visible{outline-color:var(--theme-accent)}
 #viewport[data-crop-edge="nw"],#viewport[data-crop-edge="se"],#viewport[data-crop-edge="nw"] .video-frame,#viewport[data-crop-edge="se"] .video-frame{cursor:nwse-resize!important}
 
 #viewport.image-crop-alt .image-card .media-actions,#viewport.image-crop-alt .image-card .resize-handle,#viewport.image-crop-alt .connection-port{display:none!important}
+
+/* Compact, keyboard-accessible interaction guide in Options. */
+.settings-shortcuts{margin:16px 0 0;font-size:12px;line-height:1.5}
+.shortcut-note{margin:0 0 12px;font-size:11px}
+.shortcut-group{border-top:1px solid var(--theme-border);padding:9px 0}
+.shortcut-group summary{cursor:pointer;color:var(--theme-panelText);font-weight:600;line-height:1.5}
+.shortcut-group summary:focus-visible{outline:2px solid var(--theme-accent);outline-offset:3px;border-radius:3px}
+.shortcut-group dl{margin:10px 0 2px}
+.shortcut-group dl>div{margin:0 0 12px}
+.shortcut-group dt{margin-bottom:3px;color:var(--theme-panelText)}
+.shortcut-group dd{margin:0;overflow-wrap:anywhere}
+.shortcut-group kbd{font:inherit;font-weight:600}

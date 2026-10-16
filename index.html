@@ -90,7 +90,69 @@
   <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
   <path d="M3 6h18" />
   <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg><span>Borrar todo</span></button>
-    <p class="settings-shortcuts"><span>Espacio · previsualizar</span><br><span>E · dibujar</span> &nbsp; <span>D · borrar</span><br><span>W · Magic Laser</span><br><span>X · borrar</span><br><span>V · mostrar / ocultar fondo de nota</span><br><span>S · escribir</span> &nbsp; <span>T · nota en el cursor</span><br><span>H · encuadrar todo</span><br><span>Z / Alt + clic derecho · zoom</span><br><span>Alt+Z · zoom con tamaño fijo</span><br><span>F · fijar bajo el cursor / liberar todo</span><br><span>Alt + botón central · mover con objeto fijo</span><br><span>1–5 · volver a vista</span></p>
+    <section class="settings-shortcuts" aria-label="Atajos e interacción">
+      <h2>Atajos e interacción</h2>
+      <p class="shortcut-note">Los atajos de herramientas se usan fuera de los editores de texto. Ctrl equivale a ⌘ en macOS.</p>
+      <details class="shortcut-group"><summary>Moverse y ver</summary><dl>
+        <div><dt><kbd>Botón central + arrastrar</kbd></dt><dd>Mover el canvas.</dd></div>
+        <div><dt><kbd>Espacio + arrastrar</kbd></dt><dd>Mover el canvas sin cambiar de herramienta.</dd></div>
+        <div><dt><kbd>Rueda / pellizco</kbd></dt><dd>Zoom alrededor del cursor. En modo Trackpad, deslizar mueve el canvas; Ctrl + deslizar hace zoom.</dd></div>
+        <div><dt><kbd>Z + arrastrar</kbd></dt><dd>Zoom horizontal con el botón izquierdo. También Alt + arrastrar con el botón derecho.</dd></div>
+        <div><dt><kbd>H</kbd></dt><dd>Encuadrar todo el contenido.</dd></div>
+        <div><dt><kbd>Espacio</kbd></dt><dd>Abrir el original bajo el cursor o el lector de una nota. Esc cierra el lector.</dd></div>
+        <div><dt><kbd>1–5</kbd></dt><dd>Volver a una vista guardada.</dd></div>
+        <div><dt><kbd>Espacio + 1–5</kbd></dt><dd>Guardar la vista actual en ese número.</dd></div>
+        <div><dt><kbd>Dos dedos</kbd></dt><dd>En pantalla táctil: desplazar y pellizcar para hacer zoom.</dd></div>
+      </dl></details>
+      <details class="shortcut-group"><summary>Herramientas y selección</summary><dl>
+        <div><dt><kbd>E</kbd></dt><dd>Dibujar; ajustar el grosor en la barra lateral.</dd></div>
+        <div><dt><kbd>D</kbd></dt><dd>Goma; ajustar su radio en la barra lateral.</dd></div>
+        <div><dt><kbd>W</kbd></dt><dd>Magic Laser: trazar sobre los elementos para seleccionarlos, incluidos dibujos. Arrastrar la selección para moverla.</dd></div>
+        <div><dt><kbd>Alt al dibujar</kbd></dt><dd>Activar Magic Laser temporalmente. Después de mover la selección, un clic fuera vuelve a dibujar. En imágenes, Alt permite recortar.</dd></div>
+        <div><dt><kbd>Arrastrar en vacío</kbd></dt><dd>En modo mover, seleccionar imágenes, vídeos, notas y Scribe con un rectángulo. Los dibujos se seleccionan con Magic Laser.</dd></div>
+        <div><dt><kbd>Esc</kbd></dt><dd>Quitar la selección; cancelar un rectángulo, una conexión o un recorte en curso.</dd></div>
+      </dl></details>
+      <details class="shortcut-group"><summary>Objetos, copiar y borrar</summary><dl>
+        <div><dt><kbd>Arrastrar</kbd></dt><dd>Mover un objeto o una selección. Arrastrar bordes o esquinas para cambiar el tamaño.</dd></div>
+        <div><dt><kbd>Ctrl + arrastrar</kbd></dt><dd>Duplicar un objeto o la selección y mover las copias.</dd></div>
+        <div><dt><kbd>Ctrl+C</kbd></dt><dd>Copiar el objeto bajo el cursor o la selección. Notas, Scribe e imágenes también se copian al portapapeles del sistema.</dd></div>
+        <div><dt><kbd>Ctrl+V</kbd></dt><dd>Pegar objetos centrados en el cursor. Si el portapapeles contiene una imagen externa, importarla como al añadir un archivo.</dd></div>
+        <div><dt><kbd>X</kbd></dt><dd>Borrar el elemento de encima bajo el cursor. Si es un acceso a un archivo, primero quitar el vínculo; otra X borra el elemento.</dd></div>
+        <div><dt><kbd>Supr / Retroceso</kbd></dt><dd>Borrar la selección; también el texto Scribe seleccionado.</dd></div>
+        <div><dt><kbd>L / Q</kbd></dt><dd>Bloquear o desbloquear el objeto bajo el cursor; si no hay uno, usar la selección.</dd></div>
+        <div><dt><kbd>Ctrl+Z</kbd></dt><dd>Deshacer.</dd></div>
+        <div><dt><kbd>Ctrl+Y / Ctrl+Shift+Z</kbd></dt><dd>Rehacer.</dd></div>
+      </dl></details>
+      <details class="shortcut-group"><summary>Recortar imágenes</summary><dl>
+        <div><dt><kbd>Alt + borde</kbd></dt><dd>Mantener Alt y arrastrar un borde o esquina para recortar. Soltar el ratón aplica; Esc cancela.</dd></div>
+        <div><dt><kbd>Mantener Alt</kbd></dt><dd>Ver el original atenuado y ampliar el marco para recuperar zonas. Rebasar el original quita todo el recorte.</dd></div>
+        <div><dt><kbd>Original intacto</kbd></dt><dd>El recorte se puede deshacer. Ctrl+C copia la zona visible; descargar el original conserva la imagen completa.</dd></div>
+      </dl></details>
+      <details class="shortcut-group"><summary>Texto, notas y temas</summary><dl>
+        <div><dt><kbd>S + clic</kbd></dt><dd>Activar Scribe y hacer clic para escribir sobre el canvas.</dd></div>
+        <div><dt><kbd>T</kbd></dt><dd>Crear una nota en el cursor.</dd></div>
+        <div><dt><kbd>Doble clic</kbd></dt><dd>Editar una nota o un texto Scribe. En una nota, otro doble clic sale de edición.</dd></div>
+        <div><dt><kbd>Esc / Ctrl+Enter</kbd></dt><dd>Terminar y guardar la edición de Scribe.</dd></div>
+        <div><dt><kbd>Shift + arrastrar</kbd></dt><dd>Mover una nota sin alineación magnética.</dd></div>
+        <div><dt><kbd>C</kbd></dt><dd>Sobre una nota: cambiar su color. En el canvas sin selección: cambiar de tema.</dd></div>
+        <div><dt><kbd>V</kbd></dt><dd>Mostrar u ocultar el fondo de la nota bajo el cursor.</dd></div>
+        <div><dt><kbd>Ctrl+F</kbd></dt><dd>Buscar texto en notas y Scribe. Enter avanza; Shift+Enter retrocede; Esc cierra.</dd></div>
+      </dl></details>
+      <details class="shortcut-group"><summary>Fijar en pantalla</summary><dl>
+        <div><dt><kbd>F</kbd></dt><dd>Fijar el elemento bajo el cursor a la pantalla. Si hay elementos fijados, F los libera todos.</dd></div>
+        <div><dt><kbd>Alt+Z + arrastrar</kbd></dt><dd>Zoom con el botón izquierdo manteniendo fijo el tamaño del objeto o selección bajo el cursor.</dd></div>
+        <div><dt><kbd>Alt + botón central</kbd></dt><dd>Arrastrar el canvas manteniendo fijo el objeto o selección bajo el cursor.</dd></div>
+      </dl></details>
+      <details class="shortcut-group"><summary>Archivos, conexiones y Vaults</summary><dl>
+        <div><dt><kbd>Añadir / soltar</kbd></dt><dd>Importar imágenes, vídeos y SVG de contornos. También puedes arrastrar una imagen o pin de Pinterest al canvas.</dd></div>
+        <div><dt><kbd>Clip con selección</kbd></dt><dd>Vincular un archivo a la selección. En modo mover, un clic en el elemento vinculado abre el archivo.</dd></div>
+        <div><dt><kbd>Puntos de conexión</kbd></dt><dd>Arrastrar desde un punto lateral de un objeto a otro para conectarlos. La goma también borra conexiones.</dd></div>
+        <div><dt><kbd>Controles al pasar</kbd></dt><dd>Al pasar sobre un objeto aparecen sus acciones: copiar, bloquear, borrar y acceder al original, según el tipo.</dd></div>
+        <div><dt><kbd>Vault</kbd></dt><dd>Crear una zona cifrada con el botón del candado. Abrir con contraseña; mover por la cabecera o bordes y redimensionar desde la esquina.</dd></div>
+        <div><dt><kbd>Vault pequeña</kbd></dt><dd>Doble clic para acercarla y encuadrarla.</dd></div>
+        <div><dt><kbd>ZIP y DATA</kbd></dt><dd>En Opciones: exportar o importar un canvas ZIP y copiar a DATA los archivos que están vinculados.</dd></div>
+      </dl></details>
+    </section>
   </section>
   <section id="colorPicker" class="color-picker" popover aria-labelledby="colorPickerTitle">
     <h2 id="colorPickerTitle">Color del lápiz y del texto</h2>

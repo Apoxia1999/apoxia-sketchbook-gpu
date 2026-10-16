@@ -2222,19 +2222,63 @@ async function clipboardImagePNG(item){
   return await convert(await preview.blob());
  }
 }
-let systemCopySequence=0;
+let systemCopySequence=0, copiedImageSignature=null, systemClipboardWrite=Promise.resolve();
+async function imageClipboardSignature(blob){
+ const bitmap=await createImageBitmap(await blob);
+ try{
+  const canvas=document.createElement('canvas');canvas.width=bitmap.width;canvas.height=bitmap.height;
+  const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(bitmap,0,0);
+  const pixels=context.getImageData(0,0,canvas.width,canvas.height).data;
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',pixels));
+  return `${canvas.width}x${canvas.height}:`+[...digest].map(b=>b.toString(16).padStart(2,'0')).join('');
+ }finally{bitmap.close();}
+}
+async function readClipboardImage(){
+ if(window.apoxiaDesktop?.readClipboardImage){
+  const image=await window.apoxiaDesktop.readClipboardImage();
+  return image?new Blob([image.bytes],{type:image.type}):null;
+ }
+ const entries=await navigator.clipboard.read();
+ for(const entry of entries){const type=entry.types.find(t=>t==='image/png')||entry.types.find(t=>t.startsWith('image/'));if(type)return await entry.getType(type);}
+ return null;
+}
+let canvasPasteBusy=false;
+async function pasteClipboardOnCanvas(){
+ if(canvasPasteBusy||gesture||duplicationBusy||vaultBusy||vaultDrag||historyBusy||canvasActions||canvasTransferBusy||editingText(document.activeElement)||document.querySelector('dialog[open]'))return;
+ const target=pointerOnPage&&document.elementFromPoint(pointerPosition.x,pointerPosition.y);
+ if(!target||!viewport.contains(target)||target.closest('button,a,input,textarea,select,[contenteditable="true"]'))return;
+ const position={...pointerPosition},epoch=privateMemoryEpoch;
+ canvasPasteBusy=true;
+ try{
+  await systemClipboardWrite.catch(()=>{});
+  let image=null;
+  try{image=await readClipboardImage();}catch(error){if(!objectClipboard.length)throw error;}
+  if(epoch!==privateMemoryEpoch)return;
+  // Internal copies retain their crop, size and group properties. An image copied
+  // elsewhere takes priority over a stale internal object clipboard.
+  const internal=image&&copiedImageSignature&&await imageClipboardSignature(image)===await copiedImageSignature;
+  if(image&&!internal){
+   const ext=({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/gif':'gif','image/svg+xml':'svg'})[image.type]||'png';
+   await addFiles([new File([image],`clipboard-${Date.now()}.${ext}`,{type:image.type})],position.x,position.y,{copyMedia:true});
+  }else if(objectClipboard.length)await pasteCanvasObjects(position);
+ }catch(error){toast(error.message);}finally{canvasPasteBusy=false;}
+}
 async function copyCanvasObjects(entries=copyableEntries()){
  objectClipboard=entries.map(entry=>({...entry,vaultId:vaultOwner(entry.kind,entry.id),snapshot:{...structuredClone(magicMap(entry.kind).get(entry.id)),...(entry.kind==='items'&&items.get(entry.id)?.type==='image'?{crop:structuredClone(items.get(entry.id).crop||null)}:{})}}));
  if(!objectClipboard.length)return;
+ copiedImageSignature=null;
  const sequence=++systemCopySequence,copied=objectClipboard;
  try{
   if(copied.every(entry=>entry.kind==='writings'||entry.snapshot.type==='text')){
-   await navigator.clipboard.writeText(copied.map(entry=>entry.snapshot.text||'').join('\n\n'));
+   systemClipboardWrite=navigator.clipboard.writeText(copied.map(entry=>entry.snapshot.text||'').join('\n\n'));
+   await systemClipboardWrite;
    if(sequence===systemCopySequence)toast(i18n.t('Texto copiado al portapapeles'));
   }else if(copied.length===1&&copied[0].snapshot.type==='image'){
    // Start the write during the keyboard gesture; decoding resolves its PNG promise.
    const png=clipboardImagePNG(copied[0].snapshot);png.catch(()=>{});
-   await navigator.clipboard.write([new ClipboardItem({'image/png':png})]);
+   copiedImageSignature=imageClipboardSignature(png).catch(()=>null);
+   systemClipboardWrite=navigator.clipboard.write([new ClipboardItem({'image/png':png})]);
+   await systemClipboardWrite;
    if(sequence===systemCopySequence)toast(i18n.t('Imagen copiada al portapapeles'));
   }else if(sequence===systemCopySequence)toast(copied.length===1?'Objeto copiado':`${copied.length} objetos copiados`);
  }catch(error){if(sequence===systemCopySequence)toast(i18n.t('Copiado dentro del lienzo. No se pudo copiar al portapapeles del sistema.'));}
@@ -2246,13 +2290,13 @@ document.addEventListener('copy',event=>{
  const entries=copyableEntries();if(!entries.length)return;
  event.preventDefault();copyCanvasObjects(entries);
 });
-// Native paste events can also come from primary-selection/middle-button input.
-// Only the explicit desktop menu/accelerator command may duplicate canvas objects.
+// Only explicit paste commands import or duplicate objects; unsolicited native
+// paste events and middle clicks must never modify the canvas.
 window.apoxiaDesktop?.onPasteCommand?.(()=>{
- if(editingText(document.activeElement)||clearDialog.open||noteReader.open||!objectClipboard.length){
+ if(editingText(document.activeElement)||clearDialog.open||noteReader.open){
   window.apoxiaDesktop.pasteNative().catch(error=>toast(error.message));return;
  }
- pasteCanvasObjects();
+ pasteClipboardOnCanvas();
 });
 
 async function duplicateCanvasObjects(entries,dx=0,dy=0){
@@ -2272,11 +2316,11 @@ function rememberDuplication(entries){
  const copies=entries.map(entry=>({kind:entry.kind,snapshot:{...structuredClone(magicMap(entry.kind).get(entry.id)),vaultId:vaultOwner(entry.kind,entry.id)}}));
  remember({label:'duplicación',undo:async()=>{clearMagicSelection();for(const entry of copies)await setCopyPresent(entry,false);},redo:async()=>{for(const entry of copies)await setCopyPresent(entry,true);}});
 }
-async function pasteCanvasObjects(){
+async function pasteCanvasObjects(position=null){
  if(!objectClipboard.length||duplicationBusy||gesture)return;
  duplicationBusy=true;
  try{
-  const pointer=pointerOnPage?pointerPosition:{x:innerWidth/2,y:innerHeight/2},destination=screenToWorld(pointer.x,pointer.y),targetVault=vaults.get(vaultScopeAtScreen(pointer.x,pointer.y));
+  const pointer=position||(pointerOnPage?pointerPosition:{x:innerWidth/2,y:innerHeight/2}),destination=screenToWorld(pointer.x,pointer.y),targetVault=vaults.get(vaultScopeAtScreen(pointer.x,pointer.y));
   if(targetVault&&!targetVault.open)throw Error(i18n.t('Abre la Vault antes de importar dentro'));
   const bounds=objectClipboard.map(entry=>vaultObjectBounds(entry.kind,entry.snapshot)).filter(Boolean);
   if(!bounds.length)return;
@@ -3599,9 +3643,9 @@ async function browserVideoCompatible(file,linked=false){
  try{return await new Promise(resolve=>{const timer=setTimeout(()=>finish(false),8000);const finish=value=>{clearTimeout(timer);resolve(value);};video.onloadeddata=()=>finish(video.videoWidth>0&&video.videoHeight>0);video.onerror=()=>finish(false);video.src=url;});}
  finally{video.removeAttribute('src');video.load();URL.revokeObjectURL(url);}
 }
-async function addFiles(files, x, y) {
+async function addFiles(files, x, y, options={}) {
   canvasActions++;
-  try { return await addFilesImpl(files, x, y); }
+  try { return await addFilesImpl(files, x, y, options); }
   finally { canvasActions--; }
 }
 function isMediaFile(file) {
@@ -3640,7 +3684,7 @@ async function createFileClip(file,x,y) {
 const imagePrepareQueue=[],imagePrepareWorkers=[];
 function prepareNativeImage(file){if(file.type==='image/svg+xml'||/\.svg$/i.test(file.name))return window.ApoxiaSVG.prepare(file);return new Promise((resolve,reject)=>{imagePrepareQueue.push({file,resolve,reject});pumpPrepare();});}
 function pumpPrepare(){while(imagePrepareWorkers.length<2){const state={worker:new Worker('/gpu-worker.js'),busy:false};state.worker.onmessage=async({data})=>{const task=state.task;state.busy=false;state.task=null;data.bitmap?.close();if(data.error)task.reject(Error(data.error));else{const bytes=new Uint8Array(await data.blob.arrayBuffer());let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);task.resolve({width:data.width,height:data.height,thumbnail:btoa(binary)});}pumpPrepare();};state.worker.onerror=()=>{state.task?.reject(Error('No se pudo preparar la imagen'));state.busy=false;state.task=null;pumpPrepare();};imagePrepareWorkers.push(state);}for(const state of imagePrepareWorkers){if(state.busy)continue;const task=imagePrepareQueue.shift();if(!task)continue;state.busy=true;state.task=task;state.worker.postMessage({file:task.file,size:64,prepare:true});}}
-async function addFilesImpl(files, x, y) {
+async function addFilesImpl(files, x, y, options={}) {
   const supported = [...files].filter(isMediaFile);
   if (!supported.length) return toast(i18n.t('Suelta vídeos o imágenes'));
   const targetVault = vaults.get(vaultScopeAtScreen(x, y));
@@ -3662,7 +3706,7 @@ async function addFilesImpl(files, x, y) {
     try {
       const headers={'Content-Type':'application/octet-stream'};
       if(type==='image'){try{prepareAhead(index);const prepared=await (preparedImages.get(index)||prepareNativeImage(file));preparedImages.delete(index);prepareAhead(index+1);if(prepared?.error)throw prepared.error;if(svgFile&&!prepared)throw new Error('No se pudo leer el SVG. Usa contornos de segmentos rectos, sin rellenos ni efectos.');vectorGeometry=prepared?.vector;if(prepared&&prepared.thumbnail.length<12000){query.set('native','1');query.set('originalWidth',prepared.width);query.set('originalHeight',prepared.height);headers['X-Apoxia-Thumbnail']=prepared.thumbnail;}}catch(error){if(svgFile)throw error;/* Other unsupported formats use the conversion pipeline. */}}
-      const linked=!!window.apoxiaDesktop?.importLinkedMedia&&localStorage.getItem('apoxia.copyMediaOnImport')==='false';
+      const linked=!options.copyMedia&&!!window.apoxiaDesktop?.importLinkedMedia&&localStorage.getItem('apoxia.copyMediaOnImport')==='false';
       if(type==='video'){const compatible=await browserVideoCompatible(file,linked);if(linked&&!compatible)throw new Error('Este vídeo necesita conversión. Activa Copiar media al importar.');if(compatible)query.set('nativeVideo','1');}
       let item;
       if(linked)item=await window.apoxiaDesktop.importLinkedMedia(file,query.toString(),headers);
@@ -5472,7 +5516,7 @@ window.addEventListener('keydown', event => {
   if (inverseZoomSaving) { event.preventDefault(); return; }
   if((event.ctrlKey||event.metaKey)&&!event.altKey&&!editingText(event.target)&&!clearDialog.open){
     const key=event.key.toLowerCase();if(key==='c'){const entries=copyableEntries();if(entries.length){event.preventDefault();if(!event.repeat)copyCanvasObjects(entries);}return;}
-    if(key==='v'&&objectClipboard.length){event.preventDefault();if(!event.repeat)pasteCanvasObjects();return;}
+    if(key==='v'&&pointerOnPage){event.preventDefault();if(!event.repeat)pasteClipboardOnCanvas();return;}
   }
   if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 'z') {
     if (editingText(event.target)) return;
@@ -5535,6 +5579,13 @@ window.addEventListener('keydown', event => {
       nextWrite.then(() => rememberItemChange(item.id, { color: previousColor }, { color }, i18n.t('color de nota'))).catch(error => toast(error.message)).finally(() => {
         if (colorWrites.get(item.id) === nextWrite) colorWrites.delete(item.id);
       });
+    } else if (pointerOnPage && !magicSelection.size && !selectedWriting && !gesture && !vaultDrag && !vaultBusy && !canvasActions && !document.querySelector('dialog[open]')) {
+      const target = document.elementFromPoint(pointerPosition.x, pointerPosition.y);
+      if (target && viewport.contains(target) && !target.closest('button,a,input,textarea,select,[contenteditable="true"]')) {
+        event.preventDefault();
+        applyTheme(themes[(themes.indexOf(activeTheme) + 1) % themes.length]);
+        renderGridBackground();
+      }
     }
   }
   if (event.key.toLowerCase() === 's') { event.preventDefault(); if (!gesture && mode !== 'write') setMode('write'); return; }

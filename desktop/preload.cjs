@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('apoxiaDesktop', {
   platform: process.platform,
   onPasteCommand: callback => {const listener=()=>callback();ipcRenderer.on('desktop:paste-command',listener);return ()=>ipcRenderer.removeListener('desktop:paste-command',listener);},
+  readClipboardImage: () => ipcRenderer.invoke('desktop:clipboard-image'),
   pasteNative: () => ipcRenderer.invoke('desktop:paste-native'),
   transfer: action => ipcRenderer.invoke('desktop:transfer',action),
   onTransferProgress: callback => {const listener=(_event,value)=>callback(value);ipcRenderer.on('desktop:transfer-progress',listener);return ()=>ipcRenderer.removeListener('desktop:transfer-progress',listener);},

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell, utilityProcess } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, shell, utilityProcess, clipboard } = require('electron');
 const fs = require('node:fs/promises');
 const archive = require('./archive.cjs');
 let transferPromise=null;
@@ -253,6 +253,15 @@ ipcMain.handle('desktop:open-original', async (event, id) => {
   if(!(await fs.stat(file)).isFile())
     throw new Error(t('Ruta del original inválida.'));
   await openLocalFile(file);
+});
+ipcMain.handle('desktop:clipboard-image',async event=>{
+  trusted(event);
+  const entries=await clipboard.read();
+  for(const entry of entries) {
+    const type=entry.types.find(type=>type==='image/png')||entry.types.find(type=>type.startsWith('image/'));
+    if(type){const blob=await entry.getType(type);return {type,bytes:new Uint8Array(await blob.arrayBuffer())};}
+  }
+  return null;
 });
 ipcMain.handle('desktop:paste-native',event=>{trusted(event);window.webContents.paste();});
 ipcMain.handle('desktop:show-canvas-folder', async event => { trusted(event); return shell.openPath(canvasDir); });

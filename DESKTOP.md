@@ -1,11 +1,11 @@
-# Apoxia SketchBook · Escritorio
+# Apoxia SketchBook GPU · Escritorio
 
 ## Usar la app sin instalar herramientas de desarrollo
 
-Los paquetes generados están en `dist/`:
+El repositorio contiene el código fuente. Los paquetes se generan en `dist/` con los comandos de desarrollo de este documento; esa carpeta no se sube a Git.
 
-- Linux x64: `Apoxia-SketchBook-2.1.0-linux-x86_64.AppImage`. Dale permiso de ejecución y ábrelo con doble clic. Alternativa sin FUSE: extraer el paquete `linux-x64.tar.gz` y ejecutar `apoxia-sketchbook`.
-- Windows x64: `Apoxia-SketchBook-2.0.0-win-x64.zip`. Descomprímelo y abre `Apoxia SketchBook.exe`, conservando el resto de la carpeta a su lado. No necesita instalación. El instalador `.exe` y `windows-x64-portable.exe` se generan con el comando de instalador en Windows o en Linux con Wine.
+- Linux x64: AppImage o archivo `tar.gz`. Da permiso de ejecución al AppImage, o extrae el archivo y ejecuta `apoxia-sketchbook-gpu`.
+- Windows x64: ZIP con `Apoxia SketchBook GPU.exe`. Descomprímelo conservando los archivos de su carpeta. Los instaladores NSIS y el ejecutable portable se generan por separado.
 
 Electron, Node y el procesamiento multimedia van incluidos. No necesitas iniciar un servidor, instalar Node, FFmpeg ni ImageMagick. El motor interno solo escucha en este ordenador, en un puerto gestionado automáticamente, y sus peticiones requieren una clave propia de la app.
 
@@ -13,7 +13,7 @@ Los binarios son para sistemas de escritorio modernos de 64 bits. No son compati
 
 ## Dónde se guarda el canvas
 
-La aplicación guarda datos y preferencias en su carpeta de usuario, separada de la instalación. En el menú **Archivo → Carpeta del canvas** puedes abrir la carpeta exacta. En Linux suele estar bajo `~/.config/Apoxia SketchBook/`; en Windows bajo `%APPDATA%/Apoxia SketchBook/`.
+La aplicación guarda datos y preferencias en su carpeta de usuario, separada de la instalación. En el menú **Archivo → Carpeta del canvas** puedes abrir la carpeta exacta. En Linux suele estar bajo `~/.config/Apoxia SketchBook GPU/`; en Windows bajo `%APPDATA%/Apoxia SketchBook GPU/`.
 
 La primera apertura crea un canvas propio. Para trasladar uno existente:
 
@@ -41,7 +41,7 @@ Si no hay una selección del láser, Añadir conserva la importación habitual d
 ## Desarrollo
 
 ```sh
-npm ci
+npm install
 npm start
 ```
 
@@ -108,7 +108,7 @@ Los cambios guardados se actualizan aproximadamente cada dos segundos. Cada vent
 
 Las unidades `apoxia-sketchbook.service` y `apoxia-lan.service` se instalan en `~/.config/systemd/user/` y se habilitan para la sesión gráfica. Electron y el acceso LAN siguen abiertos al cerrar Codex, arrancan al iniciar sesión y se reinician si terminan. Cerrar Electron con la X oculta la ventana y mantiene el motor en segundo plano. El acceso directo Apoxia SketchBook del menú Apps vuelve a mostrarla; este comportamiento se activa mediante APOXIA_KEEP_SERVER=1 en el servicio. Detener el servicio manda una señal que guarda los cambios y cierra el backend antes de salir.
 
-La clave del enlace se conserva en `~/.config/Apoxia SketchBook/lan-access.json`, con permisos privados. No cambia al reiniciar el servicio. La IP LAN configurada es `192.168.1.229`, puerto `8765`.
+La clave del enlace se conserva en `~/.config/Apoxia SketchBook GPU/lan-access.json`, con permisos privados. No cambia al reiniciar el servicio. La IP LAN configurada es `192.168.1.229`, puerto `8765`.
 
 Parar ambos de forma intencionada:
 

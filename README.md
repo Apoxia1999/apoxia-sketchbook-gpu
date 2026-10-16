@@ -1,13 +1,19 @@
 # Apoxia SketchBook GPU — v3.0.0
 
-Nueva versión local de Apoxia SketchBook, con el motor WebGL 2 del prototipo de canvas. El código y los datos están separados de `../referencias`; la biblioteca original no se modifica.
+Canvas local infinito para imágenes, vídeos, dibujos y notas, con renderizado WebGL 2, texto vectorial Scribe y Vaults cifradas. Funciona como app de escritorio Electron o en el navegador. Los datos del canvas se guardan localmente y no se incluyen en este repositorio.
 
-## Abrir
+## Instalar y abrir
+
+Requiere Node.js 20 o superior y npm. Descarga o clona este repositorio y, desde su carpeta, instala las dependencias:
+
+```bash
+cd apoxia-sketchbook-gpu
+npm install
+```
 
 Modo navegador:
 
 ```bash
-cd /home/apoxia/Work/apoxia-sketchbook-gpu
 npm run start:web
 ```
 
@@ -16,7 +22,6 @@ Abrir http://localhost:4180. Los originales, miniaturas, posiciones, notas, dibu
 Modo escritorio:
 
 ```bash
-cd /home/apoxia/Work/apoxia-sketchbook-gpu
 npm start
 ```
 
@@ -25,10 +30,16 @@ La app de escritorio utiliza un perfil llamado **Apoxia SketchBook GPU**, separa
 Para abrir la biblioteca del navegador desde escritorio, cerrar primero su servidor y ejecutar:
 
 ```bash
-APOXIA_GPU_DATA_DIR=/home/apoxia/Work/apoxia-sketchbook-gpu/data npm start
+APOXIA_GPU_DATA_DIR="$PWD/data" npm start
 ```
 
-Solo una instancia puede escribir en una biblioteca a la vez.
+Solo una instancia puede escribir en una biblioteca a la vez. Consulta [DESKTOP.md](DESKTOP.md) para generar paquetes de escritorio. Los binarios de `dist/` y las bibliotecas personales de `data/` no se incluyen en Git.
+
+Para comprobar la geometría y el índice espacial sin abrir ventanas:
+
+```bash
+npm test
+```
 
 ## Qué conserva
 
@@ -123,3 +134,5 @@ X elimina únicamente el objeto visible superior bajo el cursor, siguiendo las c
 Mantén Alt sobre una imagen y arrastra un borde o una esquina para recortar. El original se muestra atenuado fuera del marco y los controles normales se ocultan temporalmente. Soltar el ratón aplica el cambio; Esc lo cancela y Ctrl+Z / Ctrl+Y permiten deshacer y rehacer. Al ampliar un borde más allá del original se restaura la imagen completa, sin recorte. Sin Alt los bordes siguen cambiando el tamaño, respetando la proporción de la parte visible.
 
 El original no se modifica: el recorte se guarda como coordenadas normalizadas, se aplica en GPU y se conserva al duplicar, pegar, guardar y usar Vaults. Ctrl+C copia al portapapeles solo la región visible, mientras la descarga del original sigue conservando el archivo completo. Los SVG de contornos siguen siendo vectores. `npm test` comprueba la geometría; `verification/test-image-crop.cjs` verifica los gestos, píxeles, recuperación, historial, copia y persistencia en una biblioteca temporal.
+
+Ctrl+V sobre el canvas también importa imágenes del portapapeles del sistema mediante el mismo flujo que Añadir archivos, en la posición del cursor. Una imagen copiada desde otra aplicación tiene prioridad sobre la copia interna anterior. Las copias creadas dentro del canvas conservan tamaño, recorte y selección de grupo. Pegar mientras se edita texto sigue usando el editor; los eventos de pegado no solicitados y el botón central no importan contenido. `verification/test-external-clipboard.cjs` comprueba imágenes externas, prioridad, duplicación interna y persistencia en Electron con datos temporales.
