@@ -136,3 +136,31 @@ Mantén Alt sobre una imagen y arrastra un borde o una esquina para recortar. El
 El original no se modifica: el recorte se guarda como coordenadas normalizadas, se aplica en GPU y se conserva al duplicar, pegar, guardar y usar Vaults. Ctrl+C copia al portapapeles solo la región visible, mientras la descarga del original sigue conservando el archivo completo. Los SVG de contornos siguen siendo vectores. `npm test` comprueba la geometría; `verification/test-image-crop.cjs` verifica los gestos, píxeles, recuperación, historial, copia y persistencia en una biblioteca temporal.
 
 Ctrl+V sobre el canvas también importa imágenes del portapapeles del sistema mediante el mismo flujo que Añadir archivos, en la posición del cursor. Una imagen copiada desde otra aplicación tiene prioridad sobre la copia interna anterior. Las copias creadas dentro del canvas conservan tamaño, recorte y selección de grupo. Pegar mientras se edita texto sigue usando el editor; los eventos de pegado no solicitados y el botón central no importan contenido. `verification/test-external-clipboard.cjs` comprueba imágenes externas, prioridad, duplicación interna y persistencia en Electron con datos temporales.
+
+## Referencias de pixel art
+
+Al ampliar una imagen hasta mostrar sus píxeles originales, el renderizador GPU utiliza vecino más cercano: bordes nítidos y colores sin mezclar. La cuadrícula de píxeles se conserva al recortar y al cruzar bloques de detalle; al reducir la imagen se mantiene el filtrado suave. No requiere activar una herramienta. `verification/test-pixel-art.cjs` comprueba colores, proporciones, zoom fraccionario, recortes y límites de bloques en pantallas de densidad 1× y 2×, sin abrir ventanas.
+
+X también borra las flechas bajo el cursor, tanto sobre la curva como sobre su punta. Respeta el orden visual entre notas, Scribe, flechas, dibujos e imágenes, y permite deshacer o rehacer sin eliminar los elementos conectados. `verification/test-x-arrows.cjs` comprueba las capas, flechas superpuestas, geometría curva, zoom e historial con un canvas temporal.
+
+## Fuente de Scribe
+
+Scribe usa Patrick Hand de Google Fonts, incluida localmente con su licencia SIL OFL en `assets/PatrickHand-OFL.txt`. Los textos Scribe existentes también utilizan esta fuente; las notas conservan Paper Mono. Los contornos de Patrick Hand mantienen la nitidez en zoom extremo y las mismas medidas que la edición, el cursor y la goma.
+
+Para regenerar los contornos, instala FontTools en tu entorno de desarrollo y ejecuta `python scripts/build-scribe-font.py`. Opcionalmente acepta las rutas de la fuente y del JSON de salida. `verification/test-scribe-font.cjs` comprueba el texto normal y vectorial, caracteres en español, edición, deshacer/rehacer y persistencia con un canvas temporal y sin abrir ventanas.
+
+## Formas básicas
+
+R activa el rectángulo con esquinas ligeramente redondeadas. También hay un botón en la barra lateral. Arrastra para definir el tamaño; Shift mantiene las proporciones para cuadrados y Esc cancela. Se usan el color y el grosor del lápiz. Al soltar vuelves a mover sin seleccionar la forma: arrastra el borde o selecciona varias formas con un rectángulo o Magic Laser. X y la goma permiten borrarlas; crear, mover y borrar admiten deshacer/rehacer. Los contornos se renderizan con geometría vectorial exacta y se conservan al guardar el canvas. `verification/test-basic-shapes.cjs` comprueba gestos, proporciones, selección, historial y persistencia con datos temporales.
+
+Ctrl + arrastrar duplica también formas y dibujos seleccionados con Magic Laser, incluidos grupos mixtos con fotos o textos. En una forma sin seleccionar puedes hacerlo directamente desde el borde. Se mantienen geometría, color, grosor, distribución del grupo y pertenencia a Vaults; las copias admiten deshacer/rehacer. `verification/test-duplicate-strokes.cjs` comprueba los gestos, originales intactos, historial, validación y persistencia.
+
+En **Opciones → Scribe → Fuente de Scribe** puedes elegir Patrick Hand, Gloria Hallelujah, Nanum Brush Script (interpretación de «Nano Brush»), Londrina Solid, Metal Mania (alternativa a Chinese Rocks) o Google Sans. La elección es global para Scribe, incluye vista previa y se guarda localmente. Las notas siguen usando Paper Mono. Las fuentes y sus licencias OFL están incluidas, sin consultas a Google al usarlas; los contornos se cargan bajo demanda y las tablas grandes se distribuyen comprimidas. Nanum Brush usa Patrick Hand para los acentos latinos y símbolos que no contiene, tanto en texto normal como en zoom vectorial.
+
+`python scripts/build-scribe-fonts.py` regenera todas las tablas con FontTools; Google Sans ya está incluida como una instancia estática Regular. `verification/test-scribe-font-menu.cjs` verifica las seis opciones, espaciado nativo/vectorial, acentos, cambios rápidos, edición, historial, zoom extremo y persistencia.
+
+## Vídeos de Pinterest
+
+Puedes arrastrar un pin público de Pinterest al canvas para importar su vídeo cuando Pinterest proporcione un MP4 o WebM accesible; la miniatura no sustituye al vídeo. También se aceptan enlaces directos a vídeos del CDN de Pinterest. El archivo se guarda como un vídeo normal en el lugar donde se soltó, aunque se mueva el canvas durante la descarga. Los pines de imagen siguen importándose como imágenes. Si el pin solo ofrece streaming HLS/DASH, contenido externo o no es accesible sin iniciar sesión, la app muestra un aviso en vez de guardar la miniatura como vídeo. El límite por vídeo descargado es de 256 MB. Las búsquedas y descargas no bloquean las demás ediciones del canvas.
+
+`npm test` comprueba la resolución segura de pines y `verification/test-pinterest-drop.cjs` y `verification/test-pinterest-concurrency.mjs` verifican el arrastre y la edición durante la descarga con datos temporales.

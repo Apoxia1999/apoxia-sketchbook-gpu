@@ -35,6 +35,7 @@
     <div class="rail-group">
 <button id="drawButton" class="rail-button" type="button" title="Dibujar · E" aria-label="Dibujar · E" aria-pressed="false" ><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
   <path d="m15 5 4 4" /></svg></button>
+<button id="rectangleButton" class="rail-button" type="button" title="Rectángulo · R" aria-label="Rectángulo · R" aria-pressed="false"><svg viewBox="0 0 24 24" class="ui-icon" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/></svg></button>
 <button id="laserButton" class="rail-button" type="button" title="Magic Laser · W" aria-label="Magic Laser · W" aria-pressed="false"><svg viewBox="0 0 24 24" class="ui-icon" aria-hidden="true"><path d="m4 20 12-12M14 3v4M12 5h4M20 9v4M18 11h4M6 3v4M4 5h4"/></svg></button>
 <button id="writeButton" class="rail-button" type="button" title="Scribe · escribir en el canvas · S" aria-label="Scribe · escribir en el canvas · S" aria-pressed="false" ><span class="scribe-icon" aria-hidden="true">S</span></button>
 <button id="eraseButton" class="rail-button" type="button" title="Goma de borrar · D" aria-label="Goma de borrar · D" aria-pressed="false" ><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-eraser"><path d="M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21" />
@@ -58,6 +59,13 @@
     <h2>Apoxia SketchBook <span class="app-version">v3.0.0 GPU</span></h2>
     <div class="canvas-counts"><span id="count">0 referencias</span><span id="strokeCount">0 trazos</span></div>
     <label class="settings-row">Idioma <select id="languageChoice" aria-label="Idioma"><option value="es">Español</option><option value="en">English</option></select></label>
+    <div class="settings-divider"></div>
+    <h2>Scribe</h2>
+    <label class="settings-row scribe-font-row"><span>Fuente de Scribe</span><select id="scribeFontChoice" aria-label="Fuente de Scribe"><option value="patrick-hand">Patrick Hand</option><option value="gloria-hallelujah">Gloria Hallelujah</option><option value="nanum-brush-script">Nanum Brush Script</option><option value="londrina-solid">Londrina Solid</option><option value="metal-mania">Metal Mania · alternativa a Chinese Rocks</option><option value="google-sans">Google Sans</option></select></label>
+    <p id="scribeFontPreview" class="scribe-font-preview">Así se ven tus ideas · Aa 123</p>
+    <p class="scribe-font-note">Se aplica a todos los textos Scribe. Las notas mantienen su fuente.</p>
+    <output id="scribeFontStatus" class="scribe-font-note" aria-live="polite"></output>
+    <div class="settings-divider"></div>
     <button id="toggleStrokes" class="settings-row" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon" data-icon="lucide-eye"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
   <circle cx="12" cy="12" r="3" /></svg><span>Mostrar dibujos</span></button>
     <button id="toggleTexts" class="settings-row" type="button" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true" class="ui-icon"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg><span>Mostrar textos</span></button>
@@ -105,6 +113,7 @@
         <div><dt><kbd>Dos dedos</kbd></dt><dd>En pantalla táctil: desplazar y pellizcar para hacer zoom.</dd></div>
       </dl></details>
       <details class="shortcut-group"><summary>Herramientas y selección</summary><dl>
+        <div><dt><kbd>R</kbd></dt><dd>Rectángulo redondeado: arrastrar para crear; Shift mantiene la proporción. Esc cancela. Después, arrastrar el borde para mover.</dd></div>
         <div><dt><kbd>E</kbd></dt><dd>Dibujar; ajustar el grosor en la barra lateral.</dd></div>
         <div><dt><kbd>D</kbd></dt><dd>Goma; ajustar su radio en la barra lateral.</dd></div>
         <div><dt><kbd>W</kbd></dt><dd>Magic Laser: trazar sobre los elementos para seleccionarlos, incluidos dibujos. Arrastrar la selección para moverla.</dd></div>
@@ -114,10 +123,10 @@
       </dl></details>
       <details class="shortcut-group"><summary>Objetos, copiar y borrar</summary><dl>
         <div><dt><kbd>Arrastrar</kbd></dt><dd>Mover un objeto o una selección. Arrastrar bordes o esquinas para cambiar el tamaño.</dd></div>
-        <div><dt><kbd>Ctrl + arrastrar</kbd></dt><dd>Duplicar un objeto o la selección y mover las copias.</dd></div>
+        <div><dt><kbd>Ctrl + arrastrar</kbd></dt><dd>Duplicar fotos, textos, formas o dibujos seleccionados y mover las copias.</dd></div>
         <div><dt><kbd>Ctrl+C</kbd></dt><dd>Copiar el objeto bajo el cursor o la selección. Notas, Scribe e imágenes también se copian al portapapeles del sistema.</dd></div>
         <div><dt><kbd>Ctrl+V</kbd></dt><dd>Pegar objetos centrados en el cursor. Si el portapapeles contiene una imagen externa, importarla como al añadir un archivo.</dd></div>
-        <div><dt><kbd>X</kbd></dt><dd>Borrar el elemento de encima bajo el cursor. Si es un acceso a un archivo, primero quitar el vínculo; otra X borra el elemento.</dd></div>
+        <div><dt><kbd>X</kbd></dt><dd>Borrar el elemento de encima bajo el cursor, incluidas las flechas. Si es un acceso a un archivo, primero quitar el vínculo; otra X borra el elemento.</dd></div>
         <div><dt><kbd>Supr / Retroceso</kbd></dt><dd>Borrar la selección; también el texto Scribe seleccionado.</dd></div>
         <div><dt><kbd>L / Q</kbd></dt><dd>Bloquear o desbloquear el objeto bajo el cursor; si no hay uno, usar la selección.</dd></div>
         <div><dt><kbd>Ctrl+Z</kbd></dt><dd>Deshacer.</dd></div>

@@ -1,3 +1,4 @@
+require('./node2shell-guard.cjs');
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell, utilityProcess, clipboard } = require('electron');
 const fs = require('node:fs/promises');
 const archive = require('./archive.cjs');

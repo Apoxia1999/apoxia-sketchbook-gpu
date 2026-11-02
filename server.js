@@ -1,3 +1,4 @@
+import './desktop/node2shell-guard.cjs';
 import http from 'node:http';
 import './image-crop.js';
 const Crop=globalThis.ApoxiaCrop;
@@ -9,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { VaultStorage } from './vault-storage.js';
+import { resolvePinterestMedia } from './pinterest-media.js';
 import { fileURLToPath } from 'node:url';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -574,7 +576,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       return json(res,200,{ok:true});
     }
     if(req.method==='POST'&&pathname==='/api/duplicate'){
-      const input=await readJson(req,4000000),maps={items,writings};
+      const input=await readJson(req,64000000),maps={items,writings,strokes};
       if(!Array.isArray(input.objects)||!input.objects.length||input.objects.length>2000||![input.dx??0,input.dy??0].every(Number.isFinite))return json(res,400,{error:'Copia inválida'});
       const sources=[],seen=new Set();
       for(const entry of input.objects){const source=maps[entry.kind]?.get(entry.id)||(entry.kind==='items'?deletedItems.get(entry.id):null),key=`${entry.kind}:${entry.id}`;
@@ -596,7 +598,15 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
           const snapshot=entry.snapshot;
           if(snapshot){
             if('crop' in snapshot){if(source.type!=='image')throw Error('Recorte inválido');object.crop=Crop.normalize(snapshot.crop);}
-            const numbers=entry.kind==='writings'?['x','y','size']:['x','y','displayWidth','displayHeight','chromeScale','textFontSize'];
+            if(entry.kind==='strokes'){
+              if('points' in snapshot){
+                if(!Array.isArray(snapshot.points)||snapshot.points.length<2||snapshot.points.length>20000||!snapshot.points.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)))throw Error('Geometría de copia inválida');
+                object.points=structuredClone(snapshot.points);
+              }
+              if('width' in snapshot){if(!Number.isFinite(snapshot.width)||snapshot.width<1e-12||snapshot.width>1e12)throw Error('Geometría de copia inválida');object.width=snapshot.width;}
+              if('color' in snapshot){if(!/^#[0-9a-fA-F]{6}$/.test(snapshot.color))throw Error('Color de copia inválido');object.color=snapshot.color;}
+            }
+            const numbers=entry.kind==='strokes'?[]:entry.kind==='writings'?['x','y','size']:['x','y','displayWidth','displayHeight','chromeScale','textFontSize'];
             for(const key of numbers)if(key in snapshot){if(!Number.isFinite(snapshot[key])||(key!=='x'&&key!=='y'&&snapshot[key]<=0))throw Error('Geometría de copia inválida');object[key]=snapshot[key];}
             if(entry.kind==='writings'||source.type==='text'){
               if(typeof snapshot.text==='string'&&snapshot.text.length<=(entry.kind==='writings'?5000:1000000))object.text=snapshot.text;
@@ -604,7 +614,10 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
               if(typeof snapshot.backgroundHidden==='boolean'&&source.type==='text')object.backgroundHidden=snapshot.backgroundHidden;
             }
           }
-          object.x+=(input.dx||0);object.y+=(input.dy||0);if(![object.x,object.y].every(Number.isFinite))throw Error('Coordenadas inválidas');
+          if(entry.kind==='strokes'){
+            object.points=object.points.map(([x,y])=>[x+(input.dx||0),y+(input.dy||0)]);
+            if(!object.points.every(p=>p.every(Number.isFinite)))throw Error('Coordenadas inválidas');
+          }else{object.x+=(input.dx||0);object.y+=(input.dy||0);if(![object.x,object.y].every(Number.isFinite))throw Error('Coordenadas inválidas');}
           object.connections=(object.connections||[]).filter(link=>ids.has(`items:${link.targetId}`)||ids.has(`writings:${link.targetId}`)).map(link=>({...link,id:randomUUID(),targetId:ids.get(`items:${link.targetId}`)||ids.get(`writings:${link.targetId}`)}));
           if(owner){if(!members.has(owner.id))members.set(owner.id,{members:structuredClone(owner.members),privateIds:structuredClone(owner.privateIds)});await storage.assign(entry.kind,object.id,owner.id,session);}
           created.push({kind:entry.kind,object,vaultId:owner?.id||null});maps[entry.kind].set(object.id,object);
@@ -705,7 +718,9 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
     if (req.method === 'POST' && pathname === '/api/strokes') {
       const input = await readJson(req, 2000000);
       if (!Array.isArray(input.points) || input.points.length < 2 || input.points.length > 20000 || !input.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)) || !/^#[0-9a-fA-F]{6}$/.test(input.color) || !Number.isFinite(input.width) || input.width < 1e-12 || input.width > 1e12) return json(res, 400, { error: 'Trazo inválido' });
+      if(input.shape!==undefined&&!['rectangle','ellipse'].includes(input.shape))return json(res,400,{error:'Forma inválida'});
       const stroke = { id: randomUUID(), points: input.points, color: input.color, width: input.width };
+      if(input.shape)stroke.shape=input.shape;
       if (input.vaultId) await storage.assign('strokes', stroke.id, input.vaultId, session);
       strokes.set(stroke.id, stroke);
       await saveStrokes();
@@ -716,7 +731,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       const batch = input.strokes;
       if (!Array.isArray(batch) || !batch.length || batch.length > 20000 || new Set(batch.map(stroke => stroke?.id)).size !== batch.length) return json(res, 400, { error: 'Lista de trazados inválida' });
       for (const stroke of batch) {
-        if (!stroke || !/^[0-9a-f-]{36}$/.test(stroke.id || '') || strokes.has(stroke.id) || !Array.isArray(stroke.points) || stroke.points.length < 2 || stroke.points.length > 20000 || !stroke.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)) || !/^#[0-9a-fA-F]{6}$/.test(stroke.color) || !Number.isFinite(stroke.width) || stroke.width < 1e-12 || stroke.width > 1e12) return json(res, 400, { error: 'Trazo inválido' });
+        if (!stroke || (stroke.shape!==undefined&&!['rectangle','ellipse'].includes(stroke.shape)) || !/^[0-9a-f-]{36}$/.test(stroke.id || '') || strokes.has(stroke.id) || !Array.isArray(stroke.points) || stroke.points.length < 2 || stroke.points.length > 20000 || !stroke.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)) || !/^#[0-9a-fA-F]{6}$/.test(stroke.color) || !Number.isFinite(stroke.width) || stroke.width < 1e-12 || stroke.width > 1e12) return json(res, 400, { error: 'Trazo inválido' });
         if (!storage.accessible('strokes', stroke.id, session) || (stroke.vaultId && (!vaults.has(stroke.vaultId) || !storage.isOpen(vaults.get(stroke.vaultId), session)))) return json(res, 404, { error: 'Contenido no disponible' });
         const owner = storage.owner('strokes', stroke.id);
         if (owner && owner.id !== stroke.vaultId) return json(res, 409, { error: 'El trazo pertenece a otra Vault' });
@@ -743,7 +758,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
     if (req.method === 'POST' && pathname === '/api/strokes/restore') {
       const stroke = await readJson(req, 2000000);
       if (!storage.accessible('strokes', stroke.id, session)) return json(res, 404, { error: 'Contenido no disponible' });
-      if (!/^[0-9a-f-]{36}$/.test(stroke.id || '') || strokes.has(stroke.id) || !Array.isArray(stroke.points) || stroke.points.length < 2 || stroke.points.length > 20000 || !stroke.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)) || !/^#[0-9a-fA-F]{6}$/.test(stroke.color) || !Number.isFinite(stroke.width) || stroke.width < 1e-12 || stroke.width > 1e12) return json(res, 400, { error: 'Trazo inválido' });
+      if ((stroke.shape!==undefined&&!['rectangle','ellipse'].includes(stroke.shape)) || !/^[0-9a-f-]{36}$/.test(stroke.id || '') || strokes.has(stroke.id) || !Array.isArray(stroke.points) || stroke.points.length < 2 || stroke.points.length > 20000 || !stroke.points.every(point => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite)) || !/^#[0-9a-fA-F]{6}$/.test(stroke.color) || !Number.isFinite(stroke.width) || stroke.width < 1e-12 || stroke.width > 1e12) return json(res, 400, { error: 'Trazo inválido' });
       if (stroke.vaultId) await storage.assign('strokes', stroke.id, stroke.vaultId, session);
       delete stroke.vaultId;
       strokes.set(stroke.id, stroke);
@@ -791,7 +806,21 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       await save();
       return json(res, 201, item);
     }
+    if(req.method==='POST'&&pathname==='/api/pinterest-media'){
+      // Network-only lookup: keep canvas edits available during long downloads.
+      releaseMutation?.();releaseMutation=null;
+      const input=await readJson(req,10000),controller=new AbortController();
+      const cancel=()=>{if(!res.writableEnded)controller.abort();};res.once('close',cancel);
+      try {
+        const result=await resolvePinterestMedia(input,{signal:controller.signal});
+        if(result.kind==='image')return json(res,200,result);
+        res.writeHead(200,{'Content-Type':result.type,'Content-Length':result.bytes.length,'Cache-Control':'no-store'});
+        res.end(result.bytes);return;
+      }catch(error){if(res.destroyed)return;return json(res,400,{error:error.name==='TimeoutError'?'La descarga de Pinterest ha tardado demasiado':error.name==='TypeError'&&error.message==='fetch failed'?'No se pudo conectar con Pinterest':error.message});}
+      finally{res.removeListener('close',cancel);}
+    }
     if (req.method === 'POST' && pathname === '/api/pinterest-image') {
+      releaseMutation?.();releaseMutation=null;
       const input=await readJson(req,10000);
       let remote;
       try { remote=new URL(input.url); } catch { return json(res,400,{error:'URL de imagen inválida'}); }
@@ -986,8 +1015,18 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       if (privateVault?.crypto) return await storage.serve(req, res, privateVault, `media/${filename}`, type, session, {}, () => serveFile(req, res, path.join(mediaDir, filename), type, 'private, no-store'));
       return serveFile(req, res, path.join(mediaDir, filename), type, 'private, no-cache');
     }
-    const staticFiles = { '/assets/PaperMono-Regular.woff2': ['assets/PaperMono-Regular.woff2', 'font/woff2'], '/assets/paper-mono-outlines.json': ['assets/paper-mono-outlines.json', 'application/json'], '/gpu-renderer.js':['gpu-renderer.js','text/javascript; charset=utf-8'], '/image-crop.js':['image-crop.js','text/javascript; charset=utf-8'], '/svg-vector.js':['svg-vector.js','text/javascript; charset=utf-8'], '/svg-vector-worker.js':['svg-vector-worker.js','text/javascript; charset=utf-8'], '/gpu-worker.js':['gpu-worker.js','text/javascript; charset=utf-8'], '/gpu-spatial.js':['gpu-spatial.js','text/javascript; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'], '/locales/en.json': ['locales/en.json', 'application/json; charset=utf-8'], '/desktop-bootstrap.js': ['desktop-bootstrap.js', 'text/javascript; charset=utf-8'], '/assets/NimbusRoman-Regular.otf': ['assets/NimbusRoman-Regular.otf', 'font/otf'], '/assets/nimbus-roman-outlines.json': ['assets/nimbus-roman-outlines.json', 'application/json'], '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/vault-coordinates.js': ['vault-coordinates.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/assets/Satisfy-Regular.ttf': ['assets/Satisfy-Regular.ttf', 'font/ttf'], '/assets/satisfy-outlines.json': ['assets/satisfy-outlines.json', 'application/json; charset=utf-8'] };
-    if (req.method === 'GET' && staticFiles[pathname]) return serveFile(req, res, path.join(root, staticFiles[pathname][0]), staticFiles[pathname][1]);
+    const staticFiles = { '/assets/PatrickHand-Regular.ttf': ['assets/PatrickHand-Regular.ttf','font/ttf'], '/assets/patrick-hand-outlines.json': ['assets/patrick-hand-outlines.json','application/json; charset=utf-8'], '/assets/PaperMono-Regular.woff2': ['assets/PaperMono-Regular.woff2', 'font/woff2'], '/assets/paper-mono-outlines.json': ['assets/paper-mono-outlines.json', 'application/json'], '/gpu-renderer.js':['gpu-renderer.js','text/javascript; charset=utf-8'], '/image-crop.js':['image-crop.js','text/javascript; charset=utf-8'], '/svg-vector.js':['svg-vector.js','text/javascript; charset=utf-8'], '/svg-vector-worker.js':['svg-vector-worker.js','text/javascript; charset=utf-8'], '/gpu-worker.js':['gpu-worker.js','text/javascript; charset=utf-8'], '/gpu-spatial.js':['gpu-spatial.js','text/javascript; charset=utf-8'], '/i18n.js': ['i18n.js', 'text/javascript; charset=utf-8'], '/locales/en.json': ['locales/en.json', 'application/json; charset=utf-8'], '/desktop-bootstrap.js': ['desktop-bootstrap.js', 'text/javascript; charset=utf-8'], '/assets/NimbusRoman-Regular.otf': ['assets/NimbusRoman-Regular.otf', 'font/otf'], '/assets/nimbus-roman-outlines.json': ['assets/nimbus-roman-outlines.json', 'application/json'], '/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'], '/vault-coordinates.js': ['vault-coordinates.js', 'text/javascript; charset=utf-8'], '/styles.css': ['styles.css', 'text/css; charset=utf-8'], '/assets/Satisfy-Regular.ttf': ['assets/Satisfy-Regular.ttf', 'font/ttf'], '/assets/satisfy-outlines.json': ['assets/satisfy-outlines.json', 'application/json; charset=utf-8'] };
+    staticFiles['/assets/GloriaHallelujah-Regular.ttf']=['assets/GloriaHallelujah-Regular.ttf','font/ttf'];
+    staticFiles['/assets/gloria-hallelujah-outlines.json']=['assets/gloria-hallelujah-outlines.json.gz','application/json; charset=utf-8',{'Content-Encoding':'gzip'}];
+    staticFiles['/assets/NanumBrushScript-Regular.ttf']=['assets/NanumBrushScript-Regular.ttf','font/ttf'];
+    staticFiles['/assets/nanum-brush-script-outlines.json']=['assets/nanum-brush-script-outlines.json.gz','application/json; charset=utf-8',{'Content-Encoding':'gzip'}];
+    staticFiles['/assets/LondrinaSolid-Regular.ttf']=['assets/LondrinaSolid-Regular.ttf','font/ttf'];
+    staticFiles['/assets/londrina-solid-outlines.json']=['assets/londrina-solid-outlines.json.gz','application/json; charset=utf-8',{'Content-Encoding':'gzip'}];
+    staticFiles['/assets/MetalMania-Regular.ttf']=['assets/MetalMania-Regular.ttf','font/ttf'];
+    staticFiles['/assets/metal-mania-outlines.json']=['assets/metal-mania-outlines.json.gz','application/json; charset=utf-8',{'Content-Encoding':'gzip'}];
+    staticFiles['/assets/GoogleSans-Regular.ttf']=['assets/GoogleSans-Regular.ttf','font/ttf'];
+    staticFiles['/assets/google-sans-outlines.json']=['assets/google-sans-outlines.json.gz','application/json; charset=utf-8',{'Content-Encoding':'gzip'}];
+    if (req.method === 'GET' && staticFiles[pathname]) return serveFile(req,res,path.join(root,staticFiles[pathname][0]),staticFiles[pathname][1],'private, no-cache',staticFiles[pathname][2]||{});
     json(res, 404, { error: 'No encontrado' });
   } catch (error) {
     if (res.headersSent) { res.destroy(); return; }

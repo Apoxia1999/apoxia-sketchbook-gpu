@@ -105,3 +105,27 @@ BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
 ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Patrick Hand (SIL Open Font License 1.1)
+Copyright (c) 2010-2012 Patrick Wagesreiter (mail@patrickwagesreiter.at)
+Font and license: https://github.com/google/fonts/tree/main/ofl/patrickhand
+See assets/PatrickHand-OFL.txt for the full license.
+
+Additional Scribe fonts (SIL Open Font License 1.1)
+
+GloriaHallelujah: https://github.com/google/fonts/tree/main/ofl/gloriahallelujah
+Full license: assets/GloriaHallelujah-OFL.txt
+
+NanumBrushScript: https://github.com/google/fonts/tree/main/ofl/nanumbrushscript
+Full license: assets/NanumBrushScript-OFL.txt
+
+LondrinaSolid: https://github.com/google/fonts/tree/main/ofl/londrinasolid
+Full license: assets/LondrinaSolid-OFL.txt
+
+MetalMania: https://github.com/google/fonts/tree/main/ofl/metalmania
+Full license: assets/MetalMania-OFL.txt
+
+GoogleSans: https://github.com/google/fonts/tree/main/ofl/googlesans
+Full license: assets/GoogleSans-OFL.txt
+
+Google Sans is bundled as a static Regular instance generated at the original variable font defaults (weight 400, optical size 18, grade 0). Other font binaries are unmodified. Patrick Hand is the fallback for missing characters in the native and vector renderers.

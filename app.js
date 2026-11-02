@@ -819,6 +819,34 @@ window.addEventListener('pointerup', event => {
 }, true);
 window.addEventListener('pointercancel', () => { pendingTextTap = null; lastTextTap = null; }, true);
 let scribeOutlines = null;
+const scribeFonts=[{"id": "patrick-hand", "family": "Patrick Hand"}, {"id": "gloria-hallelujah", "family": "Gloria Hallelujah"}, {"id": "nanum-brush-script", "family": "Nanum Brush Script"}, {"id": "londrina-solid", "family": "Londrina Solid"}, {"id": "metal-mania", "family": "Metal Mania"}, {"id": "google-sans", "family": "Google Sans"}];
+let storedScribeFont;try{storedScribeFont=localStorage.getItem('apoxia.scribeFont');}catch{}
+let activeScribeFont=scribeFonts.find(font=>font.id===storedScribeFont)||scribeFonts[0];
+const scribeFontChoice=document.querySelector('#scribeFontChoice'),scribeFontStatus=document.querySelector('#scribeFontStatus');
+scribeFontChoice.value=activeScribeFont.id;
+const scribeFontLoads=new Map();let scribeFontRequest=0;
+function scribeCanvasFont(){return `48px "${activeScribeFont.family}", "Patrick Hand"`;}
+async function loadScribeFont(id,persist=true){
+ const font=scribeFonts.find(font=>font.id===id);if(!font)return false;
+ const request=++scribeFontRequest;scribeFontChoice.setAttribute('aria-busy','true');scribeFontStatus.textContent=i18n.t('Cargando fuente…');
+ try{
+  let loaded=scribeFontLoads.get(id);
+  if(!loaded){
+   loaded=Promise.all([fetch(`/assets/${id}-outlines.json`).then(response=>{if(!response.ok)throw Error(i18n.t('No se pudo cargar la fuente de Scribe'));return response.json();}),document.fonts.load(`48px "${font.family}"`),document.fonts.load('48px "Patrick Hand"')]).then(([outlines,faces])=>{if(!faces.length||!outlines.units||!outlines.chars?.[63])throw Error(i18n.t('No se pudo cargar la fuente de Scribe'));return outlines;});
+   scribeFontLoads.set(id,loaded);loaded.catch(()=>{if(scribeFontLoads.get(id)===loaded)scribeFontLoads.delete(id);});
+  }
+  const outlines=await loaded;if(request!==scribeFontRequest)return false;
+  activeScribeFont=font;scribeOutlines=outlines;document.documentElement.style.setProperty('--scribe-font',JSON.stringify(font.family));scribeFontChoice.value=id;
+  writingWidthCache.clear();writingInkCache.clear();renderWritings();renderMagicLaser();scheduleConnectionRender();
+  for(const entry of screenFrozen.values())if(entry.kind==='writings'){const object=writings.get(entry.id);if(object){entry.visual.remove();entry.visual=screenFrozenVisual(entry,object);}}
+  if(persist)try{localStorage.setItem('apoxia.scribeFont',id);}catch{}
+  // Bound retained outline data; large script fonts are fetched only when chosen.
+  while(scribeFontLoads.size>2){const oldest=scribeFontLoads.keys().next().value;if(oldest===id){const value=scribeFontLoads.get(oldest);scribeFontLoads.delete(oldest);scribeFontLoads.set(oldest,value);}else scribeFontLoads.delete(oldest);}
+  return true;
+ }catch(error){if(request===scribeFontRequest){scribeFontChoice.value=activeScribeFont.id;toast(error.message);}return false;}
+ finally{if(request===scribeFontRequest){scribeFontChoice.removeAttribute('aria-busy');scribeFontStatus.textContent='';}}
+}
+scribeFontChoice.addEventListener('change',()=>loadScribeFont(scribeFontChoice.value));
 const minZoom = 1e-12;
 const maxZoom = 1e8;
 let lastViewTimer = 0;
@@ -1464,7 +1492,7 @@ function renderNotePreviews(){
 function notePick(x,y,includeLocked=false){if(!showTexts)return null;const p=screenToWorld(x,y);const hit=ownedNoteGPU.hit(p.x,p.y)||noteGPU.hit(p.x,p.y);return hit&&(includeLocked||!items.get(hit.id)?.locked)&&noteInteractionAllowed(items.get(hit.id))?hit:null;}
 function setNoteHover(id){if(noteHoverId===id)return;const previous=noteHoverId;noteHoverId=id;noteGPUSceneDirty=true;for(const key of [previous,id]){const item=items.get(key),card=cards.get(key);if(item&&card)applyCardChrome(card,item);}scheduleNotePreviewRender();}
 viewport.addEventListener('pointermove',event=>{
- if(gesture||vaultDrag||spaceHeld||zHeld||['draw','erase','write','laser'].includes(mode))return;
+ if(gesture||vaultDrag||spaceHeld||zHeld||['draw','erase','write','laser','rectangle','ellipse'].includes(mode))return;
  if(event.target.closest('button,a,.vault-frame,.canvas-writing,.resize-handle'))return;
  const native=event.target.closest('.text-card'),hit=native?{id:native.dataset.id}:notePick(event.clientX,event.clientY),item=hit&&items.get(hit.id);
  const unit=item?noteLayoutUnit(item):1,base=item?.chromeScale||1;
@@ -1476,7 +1504,7 @@ viewport.addEventListener('pointerdown',event=>{
   const hit=notePick(event.clientX,event.clientY);if(hit){setMode('move',false);setNoteHover(hit.id);event.preventDefault();event.stopImmediatePropagation();startCardMove(event,hit.id);return;}
  }
  if(rectangleSelectionHit(event))return;
- if(event.button!==0||gesture||spaceHeld||zHeld||['draw','erase','write','laser'].includes(mode)||event.target.closest('.text-card,button,a,.resize-handle,.vault-frame,.canvas-writing'))return;
+ if(event.button!==0||gesture||spaceHeld||zHeld||['draw','erase','write','laser','rectangle','ellipse'].includes(mode)||event.target.closest('.text-card,button,a,.resize-handle,.vault-frame,.canvas-writing'))return;
  const hit=notePick(event.clientX,event.clientY),item=hit&&items.get(hit.id);if(!item)return;
  const unit=noteLayoutUnit(item),base=item.chromeScale||1;if((item.displayWidth||300)*camera.scale<90||(item.textFontSize||17*base)/base*unit*camera.scale<5)return;
  setNoteHover(item.id);const card=cards.get(item.id);event.preventDefault();event.stopImmediatePropagation();
@@ -1639,6 +1667,37 @@ window.addEventListener('keydown',event=>{
 window.addEventListener('keyup',event=>{if(event.key==='Alt'){cropAltHeld=false;syncCropPreview();}},{capture:true});
 window.addEventListener('blur',()=>{cropAltHeld=false;if(gesture?.type==='crop')endGesture({type:'pointercancel',pointerId:gesture.pointer});syncCropPreview();});
 
+function updateShapeGesture(event){
+ const g=gesture;if(g?.type!=='shape')return;
+ const p=screenToWorld(event.clientX,event.clientY),v=g.vaultId&&vaults.get(g.vaultId);
+ if(v){const b=vaultInterior(v),pad=g.width/2;p.x=Math.max(b.x+pad,Math.min(b.x+b.width-pad,p.x));p.y=Math.max(b.y+pad,Math.min(b.y+b.height-pad,p.y));}
+ let dx=p.x-g.start.x,dy=p.y-g.start.y;
+ if(event.shiftKey){const side=Math.min(Math.abs(dx),Math.abs(dy));dx=Math.sign(dx||1)*side;dy=Math.sign(dy||1)*side;}
+ const x=Math.min(g.start.x,g.start.x+dx),y=Math.min(g.start.y,g.start.y+dy),w=Math.abs(dx),h=Math.abs(dy),points=[];
+ g.bounds={x,y,width:w,height:h};
+ if(g.shape==='ellipse'){for(let i=0;i<=256;i++){const a=i*Math.PI*2/256;points.push([x+w/2+Math.cos(a)*w/2,y+h/2+Math.sin(a)*h/2]);}}
+ else{const r=Math.min(w,h)*.06;for(const [cx,cy,start]of [[x+w-r,y+r,-Math.PI/2],[x+w-r,y+h-r,0],[x+r,y+h-r,Math.PI/2],[x+r,y+r,Math.PI]])for(let i=0;i<=32;i++){const a=start+i*Math.PI/64;points.push([cx+Math.cos(a)*r,cy+Math.sin(a)*r]);}points.push(points[0]);}
+ g.points=points;preview.replaceChildren();
+ const node=document.createElementNS(svgNS,g.shape==='ellipse'?'ellipse':'rect'),a=worldToScreen([x,y]);
+ if(g.shape==='ellipse'){node.setAttribute('cx',a[0]+w*camera.scale/2);node.setAttribute('cy',a[1]+h*camera.scale/2);node.setAttribute('rx',w*camera.scale/2);node.setAttribute('ry',h*camera.scale/2);}
+ else{for(const [key,value]of Object.entries({x:a[0],y:a[1],width:w*camera.scale,height:h*camera.scale,rx:Math.min(w,h)*camera.scale*.06}))node.setAttribute(key,value);}
+ node.setAttribute('fill','none');node.setAttribute('stroke',g.color);node.setAttribute('stroke-width',g.width*camera.scale);preview.append(node);
+}
+viewport.addEventListener('pointerdown',event=>{
+ if(event.button!==0||gesture||spaceHeld||zHeld||event.altKey||vaultBusy||vaultDrag||historyBusy||canvasActions||editingWriting||editingNoteId||event.target.closest('button,a,input,textarea,.vault-head,.vault-form,.vault-resize'))return;
+ if(['rectangle','ellipse'].includes(mode)){
+  event.preventDefault();event.stopImmediatePropagation();const owner=vaultScopeAtScreen(event.clientX,event.clientY);if(owner&&!vaults.get(owner)?.open)return;
+  gesture={type:'shape',shape:mode,pointer:event.pointerId,start:screenToWorld(event.clientX,event.clientY),vaultId:owner,color:penColor.value,width:Number(drawWidthInput.value)/camera.scale};clipVaultPreview(owner);updateShapeGesture(event);viewport.setPointerCapture(event.pointerId);return;
+ }
+ if(mode!=='move'||!showStrokes||event.target.closest('.text-card,.canvas-writing'))return;
+ const p=screenToWorld(event.clientX,event.clientY),point=[p.x,p.y],scope=vaultScopeAtScreen(event.clientX,event.clientY);
+ if(showTexts&&(notePick(event.clientX,event.clientY)||[...writings.values()].some(a=>vaultContentVisible('writings',a.id)&&magicTouches('writings',a,point,point,0))))return;
+ const hit=[...strokes.values()].reverse().find(a=>a.shape&&!a.locked&&vaultContentVisible('strokes',a.id)&&vaultOwner('strokes',a.id)===scope&&magicTouches('strokes',a,point,point));if(!hit||magicSelection.has(`strokes:${hit.id}`))return;
+ event.preventDefault();event.stopImmediatePropagation();clearMagicSelection();magicSelection.set(`strokes:${hit.id}`,{kind:'strokes',id:hit.id});renderMagicLaser();
+ if(event.ctrlKey||event.metaKey){startDuplicateDrag(event,[{kind:'strokes',id:hit.id}]);return;}
+ const entry={kind:'strokes',id:hit.id,points:hit.points.map(p=>[...p])};gesture={type:'magic-move',pointer:event.pointerId,startX:event.clientX,startY:event.clientY,entries:[entry],movingKeys:new Set([`strokes:${hit.id}`]),dx:0,dy:0};viewport.setPointerCapture(event.pointerId);
+},{capture:true});
+window.addEventListener('blur',()=>{if(gesture?.type==='shape')endGesture({type:'pointercancel',pointerId:gesture.pointer});});
 function gpuInteractive(item,card){return playingVideoId===item.id||gpuHoverId===item.id||cardPinned(card,item)||screenFrozen.has(`items:${item.id}`);}
 window.addEventListener('apoxia-svg-error',event=>{const item=items.get(event.detail.id);if(item)toast(`${item.name}: ${event.detail.message}`);});
 function gpuReady(item){return item?.type!=='text'&&item?.status==='ready';}
@@ -1762,14 +1821,14 @@ function setMode(next, toggle = true, preserveMagicSelection = false) {
   if (magicSaving || inverseZoomSaving) return;
   mode = toggle && mode === next ? 'move' : next;
   if (mode === 'draw' || mode === 'erase' || mode === 'pan') { hoveredWriting = null; selectedWriting = null; writingControls.hidden = true; }
-  if ((mode === 'draw' || mode === 'erase') && !showStrokes) setStrokesVisible(true);
+  if (['draw','erase','rectangle','ellipse'].includes(mode) && !showStrokes) setStrokesVisible(true);
   if (mode !== 'laser' && mode !== 'pan' && !preserveMagicSelection) clearMagicSelection();
   viewport.dataset.mode = mode;
-  for (const [id, name] of [['drawButton', 'draw'], ['eraseButton', 'erase'], ['laserButton', 'laser'], ['writeButton', 'write']]) document.getElementById(id).setAttribute('aria-pressed', String(mode === name));
+  for (const [id, name] of [['drawButton', 'draw'], ['eraseButton', 'erase'], ['laserButton', 'laser'], ['writeButton', 'write'], ['rectangleButton','rectangle']]) document.getElementById(id).setAttribute('aria-pressed', String(mode === name));
   document.querySelector('#eraserSizeControl').hidden = mode !== 'erase';
-  document.querySelector('#drawSizeControl').hidden = true;
+  document.querySelector('#drawSizeControl').hidden = !['rectangle','ellipse'].includes(mode);
   eraserCursor.hidden = mode !== 'erase';
-  help.textContent = mode === 'laser' ? i18n.t('Magic Laser · pinta para seleccionar · arrastra la selección · Esc: soltar') : mode === 'draw' ? i18n.t('Dibuja sobre el fondo · Ctrl+Z: deshacer · Esc: terminar') : mode === 'erase' ? i18n.t('Arrastra la goma · Ctrl+Z: deshacer · Esc: terminar') : mode === 'write' ? i18n.t('Haz clic para escribir · Doble clic: editar · Supr: borrar · Ctrl+Z: deshacer') : i18n.t('Arrastra el fondo: seleccionar · Espacio: mover · E: dibujar · D: borrar · H: encuadrar · Z: zoom · Ctrl+Z: deshacer');
+  help.textContent = ['rectangle','ellipse'].includes(mode) ? i18n.t('Arrastra para crear una forma · Shift: proporción fija · Esc: cancelar') : mode === 'laser' ? i18n.t('Magic Laser · pinta para seleccionar · arrastra la selección · Esc: soltar') : mode === 'draw' ? i18n.t('Dibuja sobre el fondo · Ctrl+Z: deshacer · Esc: terminar') : mode === 'erase' ? i18n.t('Arrastra la goma · Ctrl+Z: deshacer · Esc: terminar') : mode === 'write' ? i18n.t('Haz clic para escribir · Doble clic: editar · Supr: borrar · Ctrl+Z: deshacer') : i18n.t('Arrastra el fondo: seleccionar · Espacio: mover · E: dibujar · D: borrar · H: encuadrar · Z: zoom · Ctrl+Z: deshacer');
   renderWritings();
   scheduleVideoHover();
   scheduleConnectionRender();
@@ -2301,7 +2360,8 @@ window.apoxiaDesktop?.onPasteCommand?.(()=>{
 
 async function duplicateCanvasObjects(entries,dx=0,dy=0){
  const result=await apiChange('/api/duplicate','POST',{objects:entries,dx,dy});
- for(const entry of result.objects){restoreCreatedMembership(entry.kind,{id:entry.object.id,vaultId:entry.vaultId});magicMap(entry.kind).set(entry.object.id,entry.object);if(entry.kind==='items')updateCard(entry.object);}
+ for(const entry of result.objects){restoreCreatedMembership(entry.kind,{id:entry.object.id,vaultId:entry.vaultId});if(entry.kind==='strokes')addStroke(entry.object,true);else magicMap(entry.kind).set(entry.object.id,entry.object);if(entry.kind==='items')updateCard(entry.object);}
+ if(result.objects.some(entry=>entry.kind==='strokes'))redrawStrokes();
  clearMagicSelection();rectangleSelection=true;
  for(const entry of result.objects)magicSelection.set(`${entry.kind}:${entry.object.id}`,{kind:entry.kind,id:entry.object.id});
  selectedWriting=null;lastSelectedItem=result.objects.find(entry=>entry.kind==='items')?.object.id||null;
@@ -2309,6 +2369,7 @@ async function duplicateCanvasObjects(entries,dx=0,dy=0){
  return result.objects.map(entry=>({kind:entry.kind,id:entry.object.id}));
 }
 async function setCopyPresent(entry,present){
+ if(entry.kind==='strokes')return setStrokePresent(entry.snapshot,present);
  if(entry.kind==='writings')return setWritingPresent(entry.snapshot,present);
  return entry.snapshot.type==='text'?setNotePresent(entry.snapshot,present):setMediaPresent(entry.snapshot,present);
 }
@@ -2332,7 +2393,7 @@ async function pasteCanvasObjects(position=null){
 }
 function startDuplicateDrag(event,entries){
  if(duplicationBusy||gesture)return;
- entries=entries.filter(entry=>['items','writings'].includes(entry.kind));if(!entries.length)return;
+ entries=entries.filter(entry=>['items','writings','strokes'].includes(entry.kind));if(!entries.length)return;
  event.preventDefault();event.stopPropagation();
  gesture={type:'duplicate-pending',pointer:event.pointerId,startX:event.clientX,startY:event.clientY,lastX:event.clientX,lastY:event.clientY,objects:entries.map(entry=>({...entry,snapshot:structuredClone(magicMap(entry.kind).get(entry.id))}))};
  viewport.setPointerCapture(event.pointerId);
@@ -2342,7 +2403,7 @@ async function beginDuplicateDrag(state){
  try{
   const copies=await duplicateCanvasObjects(state.objects);
   if(state.cancelled){for(const entry of copies)await setCopyPresent({kind:entry.kind,snapshot:{...structuredClone(magicMap(entry.kind).get(entry.id)),vaultId:vaultOwner(entry.kind,entry.id)}},false);clearMagicSelection();return;}
-  const entries=copies.map(entry=>({...entry,x:magicMap(entry.kind).get(entry.id).x,y:magicMap(entry.kind).get(entry.id).y}));
+  const entries=copies.map(entry=>{const object=magicMap(entry.kind).get(entry.id);return {...entry,x:object.x,y:object.y,...(entry.kind==='strokes'?{points:object.points.map(p=>[...p])}:{})};});
   gesture={type:'magic-move',pointer:state.pointer,startX:state.startX,startY:state.startY,entries,movingKeys:new Set(entries.map(entry=>`${entry.kind}:${entry.id}`)),dx:(state.lastX-state.startX)/camera.scale,dy:(state.lastY-state.startY)/camera.scale,duplicates:copies};
   magicApply(entries,gesture.dx,gesture.dy);updateMagicCursor();
   if(state.released)await endGesture({type:'pointerup',pointerId:state.pointer});
@@ -2997,6 +3058,11 @@ function addStroke(stroke, deferRender = false) {
     chunks.coarse = makeStrokePath(simplifyPoints(renderPoints, stroke.width * 0.75));
     chunks.tiny = makeStrokePath(simplifyPoints(renderPoints, stroke.width * 3));
   }
+  if(stroke.shape){
+    const b=pointBounds(stroke.points,0,stroke.points.length-1),w=b.maxX-b.minX,h=b.maxY-b.minY,path=new Path2D();
+    if(w>0&&h>0){if(stroke.shape==='ellipse')path.ellipse(w/2,h/2,w/2,h/2,0,0,Math.PI*2);else path.roundRect(0,0,w,h,Math.min(w,h)*.06);}
+    const exact={path,x:b.minX,y:b.minY,bounds:b};chunks.full=[exact];chunks.coarse=exact;chunks.tiny=exact;
+  }
   strokeChunks.set(stroke.id, chunks);
   strokes.set(stroke.id, stroke);
   const owner = vaults.get(vaultOwner('strokes', stroke.id));
@@ -3129,8 +3195,18 @@ function writingEraserHit(writing, ax, ay, bx, by, radius) {
   const ctx = writingEraseContext;
   const scale = writing.size * camera.scale / 48;
   ctx.setTransform(scale, 0, 0, scale, camera.x + writing.x * camera.scale - left, camera.y + writing.y * camera.scale - top);
-  ctx.font = '48px "Paper Mono"'; ctx.fillStyle = '#fff';
-  writing.text.split('\n').forEach((line, index) => ctx.fillText(line, 0, index * 64.8));
+  ctx.font = scribeCanvasFont(); ctx.fillStyle = '#fff';
+  writing.text.split('\n').forEach((line,index)=>{
+    if(!scribeOutlines){ctx.fillText(line,0,index*64.8);return;}
+    // Match SVG's disabled ligatures and the vector layout exactly.
+    const unit=48/scribeOutlines.units;let x=0,previous=null;
+    for(const character of line){
+      const code=character.codePointAt(0),glyph=scribeOutlines.chars[code]||scribeOutlines.chars[63];
+      if(!glyph)continue;
+      if(previous!==null)x+=(scribeOutlines.kern[`${previous},${code}`]||0)*unit;
+      ctx.fillText(character,x,index*64.8);x+=glyph.a*unit;previous=code;
+    }
+  });
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = 'destination-in';
   ctx.beginPath();
@@ -3231,7 +3307,7 @@ function renderWritingCaret() {
   const edit = editingWriting;
   const prefix = writingEditor.value.slice(0, writingEditor.selectionEnd);
   const lines = prefix.split('\n');
-  writingMeasure.font = '48px "Paper Mono"';
+  writingMeasure.font = scribeCanvasFont();
   const pixels = edit.size * camera.scale;
   const x = camera.x + edit.x * camera.scale + measureScribeLine(lines.at(-1)) * pixels / 48;
   const y = camera.y + edit.y * camera.scale + (lines.length - 1) * pixels * 1.35;
@@ -3284,7 +3360,7 @@ function paintWritingDetails(ownedPass = false) {
 }
 function measureScribeLine(line) {
   if (!scribeOutlines) {
-    writingMeasure.font = '48px "Paper Mono"';
+    writingMeasure.font = scribeCanvasFont();
     return writingMeasure.measureText(line).width;
   }
   let units = 0, previous = null;
@@ -3300,7 +3376,7 @@ function measureScribeLine(line) {
 }
 function writingWidth(writing) {
   if (writingWidthCache.has(writing.text)) return writingWidthCache.get(writing.text);
-  writingMeasure.font = '48px "Paper Mono"';
+  writingMeasure.font = scribeCanvasFont();
   const width = Math.max(1, ...writing.text.split('\n').map(line => measureScribeLine(line || ' ')));
   writingWidthCache.set(writing.text, width);
   return width;
@@ -3314,7 +3390,7 @@ function writingInkBounds(text) {
   for (const [index, line] of text.split('\n').entries()) {
     const baseline = index * 64.8;
     if (!scribeOutlines || !Object.hasOwn(scribeOutlines.chars[63] || {}, 'b')) {
-      writingMeasure.font = '48px "Paper Mono"';
+      writingMeasure.font = scribeCanvasFont();
       const metrics = writingMeasure.measureText(line);
       if (!line.trim()) continue;
       left = Math.min(left, -metrics.actualBoundingBoxLeft);
@@ -3793,6 +3869,7 @@ function selectRectangle(g){
  const records=[...photoGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y),...ownedPhotoGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y),...noteGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y),...ownedNoteGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y)];
  const candidates=new Map(records.map(model=>[`items:${model.id}`,{kind:'items',id:model.id}]));
  for(const object of writings.values())candidates.set(`writings:${object.id}`,{kind:'writings',id:object.id});
+ if(showStrokes)for(const object of strokes.values())if(object.shape)candidates.set(`strokes:${object.id}`,{kind:'strokes',id:object.id});
  for(const [key,entry] of candidates){const object=magicMap(entry.kind).get(entry.id);if(!object||object.locked||!vaultContentVisible(entry.kind,entry.id)||vaultOwner(entry.kind,entry.id)!==g.scope)continue;
   if(entry.kind==='items'&&(!noteInteractionAllowed(object)||(object.type==='text'?!showTexts:!showMedia)))continue;
   const box=magicBounds(entry.kind,object);if(box&&box.x<=b.x&&box.x+box.width>=a.x&&box.y<=b.y&&box.y+box.height>=a.y)magicSelection.set(key,entry);
@@ -4061,7 +4138,7 @@ for(const [kind,map] of [['items',items],['writings',writings],['strokes',stroke
 }
 let fileHover=null,fileLinkTap=null,fileGlowFrame=0;
 function linkedObjectAt(x,y,target) {
-  if(!window.apoxiaDesktop || ['draw','erase','write','laser','pan'].includes(mode) || spaceHeld || zHeld) return null;
+  if(!window.apoxiaDesktop || ['draw','erase','write','laser','pan','rectangle','ellipse'].includes(mode) || spaceHeld || zHeld) return null;
   const p=screenToWorld(x,y),point=[p.x,p.y],candidates=[];
   const card=target?.closest('.video-card'),writing=target?.closest('.canvas-writing');
   const direct=card?{kind:'items',id:card.dataset.id}:writing?{kind:'writings',id:writing.dataset.id}:null;
@@ -4109,7 +4186,7 @@ viewport.addEventListener('pointerdown',event=> {
 },{capture:true});
 viewport.addEventListener('pointerup',event=> {
   const tap=fileLinkTap;fileLinkTap=null;
-  if(!tap || tap.pointer!==event.pointerId || Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>5 || ['draw','erase','write','laser','pan'].includes(mode)) return;
+  if(!tap || tap.pointer!==event.pointerId || Math.hypot(event.clientX-tap.x,event.clientY-tap.y)>5 || ['draw','erase','write','laser','pan','rectangle','ellipse'].includes(mode)) return;
   const link=magicMap(tap.kind).get(tap.id)?.fileLink;
   if(link) window.apoxiaDesktop.openFile(link.id).catch(error=>toast(error.message));
 },{capture:true});
@@ -4268,7 +4345,7 @@ function closestConnector(sourceId,x,y) {
   return target;
 }
 function hoveredConnectorItem() {
-  if(!connectorPointerInside || spaceHeld || zHeld || ['draw','erase','write'].includes(mode)) return null;
+  if(!connectorPointerInside || spaceHeld || zHeld || ['draw','erase','write','rectangle','ellipse'].includes(mode)) return null;
   const {x,y}=pointerPosition, scope=vaultScopeAtScreen(x,y); let chosen=null, area=Infinity;
   const p=screenToWorld(x,y),margin=64/camera.scale;
   const media=[...photoGPU.index.query(p.x-margin,p.y-margin,margin*2,margin*2),...ownedPhotoGPU.index.query(p.x-margin,p.y-margin,margin*2,margin*2)].map(a=>items.get(a.id));
@@ -4836,6 +4913,7 @@ viewport.addEventListener('pointermove', event => {
   if (!gesture || gesture.pointer !== event.pointerId) return;
   if(gesture.type==='crop'){const item=items.get(gesture.id);if(item){Object.assign(item,ApoxiaCrop.drag(gesture.original,gesture.before,gesture.direction,(event.clientX-gesture.startX)/camera.scale,(event.clientY-gesture.startY)/camera.scale,Math.min(8/camera.scale,gesture.before.displayWidth/2,gesture.before.displayHeight/2),1/camera.scale));updateCard(item);renderCamera();}return;}
   if(gesture.type==='duplicate-pending'){const state=gesture;state.lastX=event.clientX;state.lastY=event.clientY;if(!state.requested&&Math.hypot(state.lastX-state.startX,state.lastY-state.startY)>=4)beginDuplicateDrag(state);return;}
+  if(gesture.type==='shape'){updateShapeGesture(event);return;}
   if (gesture.type === 'rectangle-select') {updateSelectionRectangle(event);return;}
   if (gesture.type === 'connector') { updateConnectorGesture(event); return; }
   if (gesture.type === 'magic-select') { addMagicPoint(event); return; }
@@ -4971,6 +5049,7 @@ async function endGestureImpl(event) {
   if (!gesture || gesture.pointer !== event.pointerId) return;
   if (gesture.type === 'connector' && event.type === 'pointerup') updateConnectorGesture(event);
   if (gesture.type === 'erase' && event.type === 'pointerup') vaultEraseSweep(event);
+  if(gesture.type==='shape'&&event.type==='pointerup')updateShapeGesture(event);
   if (gesture.type === 'draw' && event.type === 'pointerup') addDrawPoint(event);
   if (gesture.type === 'magic-select' && event.type === 'pointerup') { addMagicPoint(event); selectMagicEnclosure(); }
   if(gesture.type==='rectangle-select'&&event.type==='pointerup')updateSelectionRectangle(event);
@@ -5071,19 +5150,24 @@ async function endGestureImpl(event) {
     });
     return;
   }
+  if(done.type==='shape'){
+    preview.replaceChildren();
+    if(event.type==='pointercancel'||!done.points||done.bounds.width*camera.scale<3||done.bounds.height*camera.scale<3)return;
+    done.type='draw';
+  }
   if (done.type === 'draw') {
     if (previewFrame) { cancelAnimationFrame(previewFrame); previewFrame = 0; }
     if (done.points.length === 1) done.points.push([done.points[0][0] + 0.01 / camera.scale, done.points[0][1]]);
     if (done.points.length < 2 || event.type === 'pointercancel') { preview.replaceChildren(); return; }
     const pendingId = crypto.randomUUID();
-    const provisional = { id: pendingId, points: done.points, color: done.color, width: done.width };
+    const provisional = { id: pendingId, points: done.points, color: done.color, width: done.width,...(done.shape?{shape:done.shape}:{}) };
     pendingDraws.set(pendingId, { stroke: provisional, vaultId: done.vaultId });
     addStroke(provisional, true);
     strokes.delete(pendingId);
     redrawStrokes();
     preview.replaceChildren();
     try {
-      const response = await fetch('/api/strokes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ points: done.points, color: done.color, width: done.width, vaultId: done.vaultId }) });
+      const response = await fetch('/api/strokes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ points: done.points, color: done.color, width: done.width, vaultId: done.vaultId,...(done.shape?{shape:done.shape}:{}) }) });
       const stroke = await response.json();
       if (!response.ok) throw new Error(stroke.error || i18n.t('No se pudo guardar el trazo'));
       if (done.vaultId && !vaults.get(done.vaultId)?.open) return;
@@ -5092,7 +5176,8 @@ async function endGestureImpl(event) {
       addStroke(stroke);
       if (done.vaultId) await saveVaultMembership();
       const snapshot = { ...structuredClone(stroke), vaultId: done.vaultId };
-      remember({ label: i18n.t('trazo'), undo: () => setStrokePresent(snapshot, false), redo: () => setStrokePresent(snapshot, true) });
+      remember({ label: i18n.t(done.shape?'forma':'trazo'), undo: () => setStrokePresent(snapshot, false), redo: () => setStrokePresent(snapshot, true) });
+      if(done.shape)setMode('move',false);
     } catch (error) { toast(error.message); }
     finally { dropPendingDraw(pendingId); redrawStrokes(); }
     return;
@@ -5199,6 +5284,7 @@ document.querySelector('#zoomIn').addEventListener('click', () => zoomAt(1.5));
 document.querySelector('#zoomOut').addEventListener('click', () => zoomAt(1 / 1.5));
 document.querySelector('#resetView').addEventListener('click', resetView);
 document.querySelector('#fitView').addEventListener('click', fitAll);
+document.querySelector('#rectangleButton').addEventListener('click',()=>setMode('rectangle'));
 document.querySelector('#laserButton').addEventListener('click', () => setMode('laser'));
 document.querySelector('#drawButton').addEventListener('click', () => {
   if (magicSaving || inverseZoomSaving) return;
@@ -5461,7 +5547,7 @@ async function deleteObjectUnderPointer() {
   const {x,y}=pointerPosition,world=screenToWorld(x,y),p=[world.x,world.y],scope=vaultScopeAtScreen(x,y);
   const available=(kind,id)=>vaultContentVisible(kind,id) && (vaultOwner(kind,id)===scope || screenFrozen.has(`${kind}:${id}`));
   // These are the same stacking contexts used by the drawing surfaces:
-  // photos (0), strokes (1), Scribe (3), notes (4), with Vault content above public content (6).
+  // photos (0), strokes (1), arrows (2), Scribe (3), notes (4), with Vault content above public content (6).
   if(stackingScheduled)updateStacking();
   const candidates=[];
   const add=(kind,object,layer,rank)=>{
@@ -5481,12 +5567,30 @@ async function deleteObjectUnderPointer() {
   for(const object of items.values()){
     if((object.type==='text'?showTexts:showMedia)&&containsVaultPoint(vaultObjectBounds('items',object),...p))add('items',object,object.type==='text'?4:0,gpuRanks.get(object.id)||0);
   }
+  order=0;
+  // Follow the same source/link order and stacking contexts as renderConnections.
+  for(const source of [...[...gpuConnectionSources].map(connectionObject).filter(Boolean),...[...writings.values()].filter(a=>a.connections?.length)]){
+    if(!connectionItemVisible(source))continue;
+    for(const link of source.connections||[]){
+      const rank=order++,target=connectionObject(link.targetId);
+      if(pendingConnectionErase.has(link.id)||!connectionItemVisible(target)||!connectionSides.includes(link.sourceSide)||!connectionSides.includes(link.targetSide))continue;
+      const owner=connectionOwner(source)||connectionOwner(target);
+      if(owner!==scope||!connectionEraserHit(connectionGeometry(source,target,link),x,y,x,y,5))continue;
+      const object={...structuredClone(link),sourceId:source.id,unit:link.unit||(source.displayWidth||320)/320,color:link.color||'#c67bea'};
+      candidates.push({kind:'connections',object,context:owner?6:0,layer:2,rank});
+    }
+  }
   candidates.sort((a,b)=>b.context-a.context||b.layer-a.layer||b.rank-a.rank);
   const target=candidates[0];
   if(!target) return;
   hoverDeleteBusy=true;
   const {kind,object}=target;
   try {
+    if(kind==='connections'){
+      await removeConnection(object);
+      remember({label:i18n.t('conexión borrada'),undo:()=>putConnection(object),redo:()=>removeConnection(object)});
+      return;
+    }
     if(object.fileLink) {
       const linkId=object.fileLink.id;
       const before=[...fileLinkedTargets.values()].filter(entry=> {
@@ -5535,6 +5639,7 @@ window.addEventListener('keydown', event => {
   }
   if ((event.key === 'Delete' || event.key === 'Backspace') && selectedWriting && !editingText(event.target) && !clearDialog.open) { event.preventDefault(); deleteWriting(selectedWriting); return; }
   if (event.key === 'Escape') {
+    if(gesture?.type==='shape'){endGesture({type:'pointercancel',pointerId:gesture.pointer});event.preventDefault();return;}
     if(gesture?.type==='rectangle-select'){endGesture({type:'pointercancel',pointerId:gesture.pointer});event.preventDefault();return;}
     if(gesture?.type==='connector') { endGesture({type:'pointercancel',pointerId:gesture.pointer}); event.preventDefault(); return; }
     clearMagicSelection(); setMode(mode); scheduleConnectionRender(); return;
@@ -5552,6 +5657,7 @@ window.addEventListener('keydown', event => {
     event.preventDefault(); if(!event.repeat && !gesture && !vaultBusy && !vaultDrag && !historyBusy && !canvasActions) toggleScreenFrozen(); return;
   }
   if (event.altKey || event.ctrlKey || event.metaKey || editingText(event.target) || clearDialog.open) return;
+  if(event.key.toLowerCase()==='r'){event.preventDefault();if(!event.repeat&&!gesture)setMode('rectangle');return;}
   if(['l','q'].includes(event.key.toLowerCase())){event.preventDefault();if(!event.repeat)toggleCanvasLock();return;}
   if(event.key.toLowerCase()==='v'){event.preventDefault();if(!event.repeat){const card=document.querySelector('.text-card:hover'),hit=card?items.get(card.dataset.id):notePick(pointerPosition.x,pointerPosition.y);if(hit?.type==='text'||hit?.type==='note')toggleNoteBackground(hit.id);}return;}
   if(event.key.toLowerCase()==='x') {event.preventDefault();if(!event.repeat) deleteObjectUnderPointer();return;}
@@ -5605,41 +5711,51 @@ window.addEventListener('blur', () => { zHeld = false; inverseZoomHeld=false; in
 window.addEventListener('dragenter', event => { if (!exportDragging && [...event.dataTransfer?.types || []].some(type=>['Files','text/uri-list','text/html'].includes(type))) { dragDepth++; dropHint.hidden = false; } });
 window.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) dropHint.hidden = true; });
 window.addEventListener('dragover', event => { event.preventDefault(); });
-function pinterestDroppedImage(transfer) {
-  const candidates=[];
-  const html=transfer.getData('text/html');
-  if(html) {
+function pinterestDropTarget(transfer) {
+  const candidates=[],html=transfer.getData('text/html');let expectVideo=false;
+  if(html){
     const document=new DOMParser().parseFromString(html,'text/html');
-    for(const image of document.querySelectorAll('img')) candidates.push(image.getAttribute('src'),image.getAttribute('data-src'));
-    for(const anchor of document.querySelectorAll('a[href]')) candidates.push(anchor.getAttribute('href'));
+    expectVideo=Boolean(document.querySelector('video,source[type^="video/"]'));
+    for(const media of document.querySelectorAll('video,video source,source[type^="video/"]'))candidates.push(media.getAttribute('src'));
+    for(const anchor of document.querySelectorAll('a[href]'))candidates.push(anchor.getAttribute('href'));
+    for(const image of document.querySelectorAll('img'))candidates.push(image.getAttribute('src'),image.getAttribute('data-src'));
   }
   candidates.push(...transfer.getData('text/uri-list').split(/\r?\n/).filter(line=>!line.startsWith('#')),transfer.getData('text/plain'));
-  for(const value of candidates) {
-    try { const url=new URL(value); if(url.protocol!=='https:') continue;
-      if(url.hostname==='pinimg.com' || url.hostname.endsWith('.pinimg.com')) return url.href;
-      if(url.hostname==='pin.it' || /^([a-z0-9-]+\.)?pinterest\.(com|es|co\.uk|fr|de|it|pt|ca|com\.au|jp|ch|at|nl|se|dk|no|fi|ie|co\.kr|com\.mx|com\.br)$/.test(url.hostname) && /^\/pin\/\d+/.test(url.pathname)) return url.href;
-    } catch {}
+  const found={video:null,stream:null,pin:null,image:null};
+  for(const value of candidates){
+    try{const url=new URL(value);if(url.protocol!=='https:'||url.username||url.password||url.port)continue;
+      const cdn=url.hostname==='pinimg.com'||url.hostname.endsWith('.pinimg.com');
+      const pin=url.hostname==='pin.it'||/^([a-z0-9-]+\.)?pinterest\.(com|es|co\.uk|fr|de|it|pt|ca|com\.au|jp|ch|at|nl|se|dk|no|fi|ie|co\.kr|com\.mx|com\.br)$/.test(url.hostname)&&/^\/pin\/(?:[^/]+--)?\d+\/?$/i.test(url.pathname);
+      if(cdn&&/\.(mp4|webm)$/i.test(url.pathname))found.video||=url.href;
+      else if(cdn&&/\.(m3u8|mpd)$/i.test(url.pathname))found.stream||=url.href;
+      else if(pin)found.pin||=url.href;
+      else if(cdn)found.image||=url.href;
+    }catch{}
   }
-  return null;
+  return {url:found.video||found.pin||found.stream||found.image,expectVideo:expectVideo||Boolean(found.video||found.stream),pin:Boolean(found.pin),video:Boolean(found.video||found.stream)};
 }
 window.addEventListener('drop', async event => {
   event.preventDefault(); dragDepth=0; dropHint.hidden=true;
   if(exportDragging) return;
-  const {clientX:x,clientY:y,dataTransfer:transfer}=event;
-  if(transfer.files.length) return addFiles(transfer.files,x,y);
-  const url=pinterestDroppedImage(transfer);
-  if(!url) return toast(i18n.t('Arrastra una imagen o el enlace de un pin de Pinterest'));
-  const point=screenToWorld(x,y);
-  toast(i18n.t('Descargando imagen de Pinterest…'));
+  const {clientX:x,clientY:y,dataTransfer:transfer}=event,target=pinterestDropTarget(transfer);
+  if(transfer.files.length&&(!target.pin&&!target.video||[...transfer.files].some(file=>file.type.startsWith('video/'))))return addFiles(transfer.files,x,y);
+  if(!target.url)return toast(i18n.t('Arrastra una imagen, vídeo o enlace de un pin de Pinterest'));
+  const point=screenToWorld(x,y);toast(i18n.t('Descargando contenido de Pinterest…'));
   try {
-    const response=await fetch('/api/pinterest-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
-    if(!response.ok) { const error=await response.json(); throw new Error(error.error || i18n.t('No se pudo descargar la imagen')); }
-    const blob=await response.blob(), extensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/avif':'avif'};
-    const name=`Pinterest-${crypto.randomUUID()}.${extensions[blob.type] || 'jpg'}`;
-    // Keep the drop location even if the user pans while downloading.
-    await addFiles([new File([blob],name,{type:blob.type})],camera.x+point.x*camera.scale,camera.y+point.y*camera.scale);
-  } catch(error) { toast(error.message); }
+    let response=await fetch('/api/pinterest-media',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:target.url,expectVideo:target.expectVideo})});
+    if(!response.ok){const error=await response.json();throw Error(i18n.t(error.error || 'No se pudo descargar el contenido de Pinterest'));}
+    if((response.headers.get('content-type')||'').includes('application/json')){
+      const result=await response.json();response=await fetch('/api/pinterest-image',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:result.url})});
+      if(!response.ok){const error=await response.json();throw Error(i18n.t(error.error || 'No se pudo descargar la imagen'));}
+    }
+    const blob=await response.blob(),extensions={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/avif':'avif','video/mp4':'mp4','video/webm':'webm'};
+    if(!extensions[blob.type])throw Error(i18n.t('Formato de Pinterest no compatible'));
+    const name=`Pinterest-${crypto.randomUUID()}.${extensions[blob.type]}`;
+    // Imported data has no local file path even when media linking is enabled.
+    await addFiles([new File([blob],name,{type:blob.type})],camera.x+point.x*camera.scale,camera.y+point.y*camera.scale,{copyMedia:true});
+  }catch(error){toast(error.message);}
 });
+
 function resizeDrawingLayer() {
   const dpr = devicePixelRatio || 1;
   drawingLayer.width = Math.max(1, Math.round(innerWidth * dpr));
@@ -5651,14 +5767,8 @@ window.addEventListener('resize', () => { preview.setAttribute('viewBox', `0 0 $
 preview.setAttribute('viewBox', `0 0 ${innerWidth} ${innerHeight}`);
 resizeDrawingLayer();
 renderCamera();
-fetch('/assets/paper-mono-outlines.json').then(response => {
-  if (!response.ok) throw new Error(i18n.t('No se pudieron cargar los contornos de Paper Mono'));
-  return response.json();
-}).then(data => { scribeOutlines = data; writingWidthCache.clear(); writingInkCache.clear(); renderWritings(); }).catch(error => toast(error.message));
-document.fonts.load('48px "Paper Mono"').then(() => {
-  writingWidthCache.clear(); writingInkCache.clear(); renderWritings();
-}).catch(error => toast(error.message));
-const initialBoardReady=document.fonts.load('17px "Paper Mono"').then(() => loadBoard());
+const initialScribeReady=loadScribeFont(activeScribeFont.id,false).then(ok=>ok||loadScribeFont('patrick-hand',false));
+const initialBoardReady=Promise.all([document.fonts.load('17px "Paper Mono"'),initialScribeReady]).then(() => loadBoard());
 window.addEventListener('pagehide', () => {
   persistLastCanvasView();
   if ([...vaults.values()].some(v => v.open)) navigator.sendBeacon('/api/vaults/lock-all');
