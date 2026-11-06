@@ -1,4 +1,4 @@
-# Apoxia SketchBook GPU — v3.0.0
+# Apoxia SketchBook GPU — v4.0.0
 
 Canvas local infinito para imágenes, vídeos, dibujos y notas, con renderizado WebGL 2, texto vectorial Scribe y Vaults cifradas. Funciona como app de escritorio Electron o en el navegador. Los datos del canvas se guardan localmente y no se incluyen en este repositorio.
 

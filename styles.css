@@ -630,3 +630,22 @@ button:focus-visible{outline-color:var(--theme-accent)}
 .scribe-font-row{flex-wrap:wrap;gap:8px}.scribe-font-row select{width:100%;max-width:100%;min-width:0}
 .scribe-font-preview{font:400 24px/1.4 var(--scribe-font,"Patrick Hand"),"Patrick Hand",cursive;margin:10px 0;color:var(--theme-panelText);overflow-wrap:anywhere}
 .scribe-font-note{display:block;font-size:11px;line-height:1.5;color:var(--theme-panelMuted);margin:6px 0}
+
+/* Compact canvas preferences. */
+.canvas-settings{width:440px;max-width:calc(100vw - 120px)}
+.settings-icon-row{display:flex;gap:8px}
+.settings-icon-row .settings-icon{width:auto;flex:1;justify-content:center;gap:5px;padding:10px 6px;border:1px solid var(--theme-border);border-radius:7px}
+.settings-icon-row .settings-icon::after{display:none}
+.settings-icon-row .settings-icon[aria-pressed="false"]{opacity:.45}
+.settings-icon-row .settings-icon[aria-pressed="true"]{border-color:var(--theme-accent)}
+.theme-choices{flex-direction:row;gap:6px;margin:10px 0}
+.theme-choice{flex:1;width:auto;justify-content:center;gap:0;border:1px solid var(--theme-muted);border-radius:7px;padding:8px 4px;text-align:center}
+.theme-choice[aria-pressed="true"]{background:var(--theme-accent);color:var(--theme-accentInk);border-color:var(--theme-accent)}
+@media(max-width:650px){.canvas-settings{width:440px;max-width:calc(100vw - 112px)}.theme-choice{font-size:11px;padding:8px 2px}}
+
+.image-reader{position:fixed;inset:0;box-sizing:border-box;width:100vw;max-width:none;height:100vh;max-height:none;margin:0;padding:24px;border:0;background:var(--theme-canvas);color:var(--theme-panelText);overflow:hidden}
+.image-reader[open]{display:flex;align-items:center;justify-content:center}
+.image-reader img{max-width:100%;max-height:100%;object-fit:contain;image-rendering:pixelated}
+.image-reader button{position:absolute;top:16px;right:20px;z-index:1;padding:8px 12px;border:1px solid var(--theme-border);border-radius:8px;background:var(--theme-panel);color:var(--theme-panelText);cursor:pointer}
+
+.video-reader video{display:block;width:100%;height:100%;object-fit:contain;outline:none}

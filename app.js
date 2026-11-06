@@ -233,6 +233,8 @@ function purgeVaultMemory(vault) {
   for (const id of vault.members.writings) { writings.delete(id); writingNodes.get(id)?.remove(); writingNodes.delete(id); writingLayer.querySelector(`#vault-writing-clip-${id}`)?.remove(); }
   for (const id of vault.members.strokes) { strokes.delete(id); strokeBounds.delete(id); strokeChunks.delete(id); strokeSpaces.delete(id); pendingErase.delete(id); }
   if(noteReader.open)closeNoteReader();
+  if(imageReader.open)closeImageReader();
+  if(videoReader.open)closeVideoReader();
   if(!canvasFind.hidden)closeCanvasFind();
   writingEditor.value = ''; selectedWriting = null; hoveredWriting = null; writingControls.hidden = true;
   writingWidthCache.clear(); writingInkCache.clear(); writingEraseMask.width = 1; writingEraseMask.height = 1;
@@ -819,11 +821,11 @@ window.addEventListener('pointerup', event => {
 }, true);
 window.addEventListener('pointercancel', () => { pendingTextTap = null; lastTextTap = null; }, true);
 let scribeOutlines = null;
-const scribeFonts=[{"id": "patrick-hand", "family": "Patrick Hand"}, {"id": "gloria-hallelujah", "family": "Gloria Hallelujah"}, {"id": "nanum-brush-script", "family": "Nanum Brush Script"}, {"id": "londrina-solid", "family": "Londrina Solid"}, {"id": "metal-mania", "family": "Metal Mania"}, {"id": "google-sans", "family": "Google Sans"}];
+const scribeFonts=[{id:"google-sans",family:"Google Sans"},{id:"londrina-solid",family:"Londrina Solid"},{id:"gloria-hallelujah",family:"Gloria Hallelujah"}];
 let storedScribeFont;try{storedScribeFont=localStorage.getItem('apoxia.scribeFont');}catch{}
 let activeScribeFont=scribeFonts.find(font=>font.id===storedScribeFont)||scribeFonts[0];
 const scribeFontChoice=document.querySelector('#scribeFontChoice'),scribeFontStatus=document.querySelector('#scribeFontStatus');
-scribeFontChoice.value=activeScribeFont.id;
+syncScribeFontButtons();
 const scribeFontLoads=new Map();let scribeFontRequest=0;
 function scribeCanvasFont(){return `48px "${activeScribeFont.family}", "Patrick Hand"`;}
 async function loadScribeFont(id,persist=true){
@@ -836,17 +838,18 @@ async function loadScribeFont(id,persist=true){
    scribeFontLoads.set(id,loaded);loaded.catch(()=>{if(scribeFontLoads.get(id)===loaded)scribeFontLoads.delete(id);});
   }
   const outlines=await loaded;if(request!==scribeFontRequest)return false;
-  activeScribeFont=font;scribeOutlines=outlines;document.documentElement.style.setProperty('--scribe-font',JSON.stringify(font.family));scribeFontChoice.value=id;
+  activeScribeFont=font;scribeOutlines=outlines;document.documentElement.style.setProperty('--scribe-font',JSON.stringify(font.family));syncScribeFontButtons();
   writingWidthCache.clear();writingInkCache.clear();renderWritings();renderMagicLaser();scheduleConnectionRender();
   for(const entry of screenFrozen.values())if(entry.kind==='writings'){const object=writings.get(entry.id);if(object){entry.visual.remove();entry.visual=screenFrozenVisual(entry,object);}}
   if(persist)try{localStorage.setItem('apoxia.scribeFont',id);}catch{}
   // Bound retained outline data; large script fonts are fetched only when chosen.
   while(scribeFontLoads.size>2){const oldest=scribeFontLoads.keys().next().value;if(oldest===id){const value=scribeFontLoads.get(oldest);scribeFontLoads.delete(oldest);scribeFontLoads.set(oldest,value);}else scribeFontLoads.delete(oldest);}
   return true;
- }catch(error){if(request===scribeFontRequest){scribeFontChoice.value=activeScribeFont.id;toast(error.message);}return false;}
+ }catch(error){if(request===scribeFontRequest){syncScribeFontButtons();toast(error.message);}return false;}
  finally{if(request===scribeFontRequest){scribeFontChoice.removeAttribute('aria-busy');scribeFontStatus.textContent='';}}
 }
-scribeFontChoice.addEventListener('change',()=>loadScribeFont(scribeFontChoice.value));
+function syncScribeFontButtons(){for(const button of scribeFontChoice.querySelectorAll('[data-scribe-font]'))button.setAttribute('aria-pressed',String(button.dataset.scribeFont===activeScribeFont.id));}
+for(const button of scribeFontChoice.querySelectorAll('[data-scribe-font]'))button.addEventListener('click',()=>loadScribeFont(button.dataset.scribeFont));
 const minZoom = 1e-12;
 const maxZoom = 1e8;
 let lastViewTimer = 0;
@@ -1218,7 +1221,7 @@ function applyCardChrome(card, item) {
   card.style.setProperty('--play-scale', String(Math.min(cardScreenWidth, cardScreenHeight) / (180 * layoutScale)));
 }
 let gridBackground = localStorage.getItem('apoxiaSketchBook.background') || 'dots';
-if (!['dots', 'squares', 'technical'].includes(gridBackground)) gridBackground = 'dots';
+if (!['dots', 'squares', 'technical', 'isometric'].includes(gridBackground)) gridBackground = 'dots';
 let gridPatternKey = '';
 const gridScaleLayers = [0, 1].map(() => {
   const layer = document.createElement('div');
@@ -1242,6 +1245,10 @@ function renderGridBackground() {
       grid.style.backgroundImage = 'radial-gradient(circle,var(--grid-dot) 1px,transparent 1.2px)';
     } else if (gridBackground === 'squares') {
       grid.style.backgroundImage = 'linear-gradient(to right,var(--grid-dot) 1px,transparent 1px),linear-gradient(to bottom,var(--grid-dot) 1px,transparent 1px)';
+    } else if (gridBackground === 'isometric') {
+      const height = 128 * 2 / Math.sqrt(3);
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="${height}" viewBox="0 0 128 ${height}"><path d="M0 0V${height}M128 0V${height}M0 0L128 ${height/2}L0 ${height}M128 0L0 ${height/2}L128 ${height}" fill="none" stroke="${color}" stroke-width="1"/></svg>`;
+      grid.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
     } else {
       const dots = [];
       for (let y = 4; y < 128; y += 8) for (let x = 4; x < 128; x += 8) {
@@ -1262,9 +1269,10 @@ function renderGridBackground() {
     const tile = spacing * (gridBackground === 'technical' ? 4 : 1) * 2 ** index;
     // Center the dots and crosses on world lattice intersections, so the
     // coarser layer occupies a subset of the finer layer's intersections.
-    const offset = gridBackground === 'squares' ? 0 : tile / 2;
-    layer.style.backgroundSize = `${tile}px ${tile}px`;
-    layer.style.backgroundPosition = `${camera.x % tile - offset}px ${camera.y % tile - offset}px`;
+    const tileHeight = gridBackground === 'isometric' ? tile * 2 / Math.sqrt(3) : tile;
+    const offset = ['squares', 'isometric'].includes(gridBackground) ? 0 : tile / 2;
+    layer.style.backgroundSize = `${tile}px ${tileHeight}px`;
+    layer.style.backgroundPosition = `${camera.x % tile - offset}px ${camera.y % tileHeight - offset}px`;
     const patternOpacity = activeTheme.id==='paper'?0.36:gridBackground === 'squares' ? 0.06 : 0.10;
     layer.style.opacity = String((index === 0 ? fade : 1 - fade) * patternOpacity);
   }
@@ -4017,7 +4025,7 @@ function renderMagicLaser() {
     } else {
       const box=magicBounds(entry.kind,object); node=document.createElementNS(svgNS,'rect');
       node.setAttribute('x',camera.x+box.x*camera.scale); node.setAttribute('y',camera.y+box.y*camera.scale);
-      node.setAttribute('width',Math.max(1,box.width*camera.scale)); node.setAttribute('height',Math.max(1,box.height*camera.scale)); node.setAttribute('rx',8);
+      node.setAttribute('width',Math.max(1,box.width*camera.scale)); node.setAttribute('height',Math.max(1,box.height*camera.scale)); node.setAttribute('rx',Math.min(3,Math.min(box.width,box.height)*camera.scale*.04));
       node.classList.add('magic-selected');
     }
     node.classList.add('magic-neon'); nodes.push(node);
@@ -4537,7 +4545,7 @@ viewport.addEventListener('pointerdown',event=> {
   if (editor?.matches('.text-editor') || editingWriting) return;
   const point=screenToWorld(event.clientX,event.clientY), p=[point.x,point.y];
   const hit=[...magicSelection.values()].some(entry=> { const object=magicMap(entry.kind).get(entry.id); return object && magicTouches(entry.kind,object,p,p); });
-  if(mode==='move'&&!hit){if(rectangleSelection)clearMagicSelection();return;}
+  if(mode==='move'&&!hit){if(rectangleSelection&&!event.altKey)clearMagicSelection();return;}
   event.preventDefault();event.stopImmediatePropagation();
   if(hit) {
     const entries=[...magicSelection.values()].filter(entry=> !screenFrozen.has(`${entry.kind}:${entry.id}`) && !magicMap(entry.kind).get(entry.id)?.locked).map(entry=> {
@@ -4829,10 +4837,11 @@ viewport.addEventListener('pointerdown', event => {
   event.stopImmediatePropagation();
   if (gesture || inverseZoomSaving || magicSaving || vaultBusy || vaultDrag || historyBusy) return;
   if (event.button === 1 || (event.button === 0 && (spaceHeld || mode === 'pan') && !zHeld)) {
-    const frozen=event.altKey ? inverseTargets(event) : [];
+    const inversePan=event.altKey && event.button!==1;
+    const frozen=inversePan ? inverseTargets(event) : [];
     gesture = { type: 'pan', pointer: event.pointerId, startX: event.clientX, startY: event.clientY, x: camera.x, y: camera.y,
       frozen, viewBefore:{...camera}, inverseDx:0, inverseDy:0, inversePanBounds:frozen.length?inversePanLimits(frozen):null };
-    if(event.altKey && !frozen.length) toast(i18n.t('Pon el puntero sobre un elemento desbloqueado para fijarlo'));
+    if(inversePan && !frozen.length) toast(i18n.t('Pon el puntero sobre un elemento desbloqueado para fijarlo'));
     document.activeElement?.blur();
     window.getSelection()?.removeAllRanges();
     viewport.classList.add('panning');
@@ -4862,7 +4871,7 @@ viewport.addEventListener('pointerdown', event => {
   }
   if (selectedWriting) selectWriting(null);
   if(mode==='move'&&!spaceHeld&&!zHeld){
-    event.preventDefault();window.getSelection()?.removeAllRanges();clearMagicSelection();
+    event.preventDefault();window.getSelection()?.removeAllRanges();if(!event.altKey)clearMagicSelection();
     gesture={type:'rectangle-select',pointer:event.pointerId,startX:event.clientX,startY:event.clientY,endX:event.clientX,endY:event.clientY,scope:vaultId};
     selectionRectangle.hidden=false;syncMagicAnimation();updateSelectionRectangle(event);viewport.setPointerCapture(event.pointerId);return;
   }
@@ -4892,9 +4901,10 @@ function addDrawPoint(event) {
   if (event.timeStamp < gesture.lastTimestamp) return;
   const point = screenToWorld(event.clientX, event.clientY);
   const screen = [event.clientX, event.clientY];
+  gesture.straight ||= event.shiftKey;
   const previous = gesture.screenPoints.at(-1);
   if (previous) {
-    const a = gesture.points.at(-1), b = [point.x, point.y];
+    const a = gesture.straight ? gesture.points[0] : gesture.points.at(-1), b = [point.x, point.y];
     const t = vaultSegmentLimit(a, b, gesture.vaultId);
     if (t < 1 || !vaultGestureAllows(event)) {
       point.x = a[0] + (b[0] - a[0]) * t; point.y = a[1] + (b[1] - a[1]) * t;
@@ -4904,8 +4914,13 @@ function addDrawPoint(event) {
   }
   if (previous && Math.hypot(screen[0] - previous[0], screen[1] - previous[1]) < 1.5) return;
   gesture.lastTimestamp = event.timeStamp;
-  gesture.points.push([point.x, point.y]);
-  gesture.screenPoints.push(screen);
+  if (gesture.straight && gesture.points.length) {
+    gesture.points = [gesture.points[0], [point.x, point.y]];
+    gesture.screenPoints = [gesture.screenPoints[0], screen];
+  } else {
+    gesture.points.push([point.x, point.y]);
+    gesture.screenPoints.push(screen);
+  }
   scheduleDrawPreview();
 }
 viewport.addEventListener('pointermove', event => {
@@ -5272,13 +5287,13 @@ viewport.addEventListener('wheel',event=> {
   const dx=event.deltaX*unit,dy=event.deltaY*unit;
   if(event.ctrlKey || event.metaKey) {
     // Browsers expose trackpad pinch as wheel events with Ctrl pressed.
-    zoomAt(Math.exp(Math.max(-1,Math.min(1,-dy*.006))),event.clientX,event.clientY);
+    zoomAt(Math.exp(Math.max(-1,Math.min(1,-dy*.024))),event.clientX,event.clientY);
     return;
   }
   if(event.deltaMode===0 && (Math.abs(dx)>0 || Math.abs(dy)<60 || !Number.isInteger(dy))) trackpadWheelUntil=performance.now()+700;
   const trackpad=wheelNavigation==='trackpad' || wheelNavigation==='auto' && performance.now()<trackpadWheelUntil;
   if(trackpad && !zHeld) {camera.x-=dx;camera.y-=dy;scheduleCameraRender();}
-  else zoomAt(Math.exp(Math.max(-1,Math.min(1,-dy*.0015))),event.clientX,event.clientY);
+  else zoomAt(Math.exp(Math.max(-1,Math.min(1,-dy*(trackpad ? .006 : .0015)))),event.clientX,event.clientY);
 },{passive:false});
 document.querySelector('#zoomIn').addEventListener('click', () => zoomAt(1.5));
 document.querySelector('#zoomOut').addEventListener('click', () => zoomAt(1 / 1.5));
@@ -5481,6 +5496,33 @@ async function toggleCanvasLock(){
   try{await apply(true);remember({label:'bloqueo',undo:()=>apply(false),redo:()=>apply(true)});}
   catch(error){try{await apply(false);}catch(rollbackError){console.error(rollbackError);}toast(error.message);}finally{canvasLockBusy=false;canvasActions--;}
 }
+const videoReader=document.createElement('dialog');videoReader.className='image-reader video-reader';
+videoReader.innerHTML='<button type="button" aria-label="Cerrar vídeo">Cerrar · Esc</button><video controls playsinline preload="metadata"></video>';
+document.body.append(videoReader);
+const readerVideo=videoReader.querySelector('video');
+function closeVideoReader(){readerVideo.pause();if(videoReader.open)videoReader.close();readerVideo.removeAttribute('src');readerVideo.load();}
+videoReader.querySelector('button').addEventListener('click',closeVideoReader);
+videoReader.addEventListener('cancel',event=>{event.preventDefault();closeVideoReader();});
+window.addEventListener('keydown',event=>{if(!videoReader.open)return;event.stopImmediatePropagation();if(event.key==='Escape'){event.preventDefault();closeVideoReader();}else if(event.code==='Space'){event.preventDefault();if(!event.repeat){if(readerVideo.paused)readerVideo.play().catch(()=>{});else readerVideo.pause();}}},{capture:true});
+function openVideoReader(item){
+ for(const video of videoPreviews.values())video.pause();
+ readerVideo.muted=!audioEnabled||!item.hasAudio;
+ readerVideo.src=privateMediaURL(item.nativeVideo&&item.originalAvailable?`/original/${item.id}`:`/media/${item.id}.mp4`,item.id);
+ videoReader.showModal();readerVideo.focus();readerVideo.play().catch(()=>{});
+}
+const imageReader=document.createElement('dialog');imageReader.className='image-reader';
+imageReader.innerHTML='<button type="button" aria-label="Cerrar imagen">Cerrar · Esc</button><img alt="">';
+document.body.append(imageReader);
+function closeImageReader(){if(imageReader.open)imageReader.close();imageReader.querySelector('img').removeAttribute('src');}
+imageReader.querySelector('button').addEventListener('click',closeImageReader);
+imageReader.addEventListener('cancel',event=>{event.preventDefault();closeImageReader();});
+window.addEventListener('keydown',event=>{if(!imageReader.open)return;event.stopImmediatePropagation();if(event.key==='Escape'||event.code==='Space'){event.preventDefault();if(!event.repeat)closeImageReader();}},{capture:true});
+function openImageReader(item){
+ const source=item.originalAvailable?`/original/${encodeURIComponent(item.id)}`:cards.get(item.id)?.querySelector('img')?.src;
+ if(!source)return;
+ imageReader.querySelector('img').src=source;
+ imageReader.showModal();imageReader.querySelector('button').focus();
+}
 const noteReader=document.createElement('dialog');noteReader.className='note-reader';
 noteReader.innerHTML='<header><span>Lectura de nota</span><output>0%</output><button type="button" aria-label="Cerrar lectura">Cerrar · Esc</button></header><div class="note-reader-scroll" tabindex="0"><textarea aria-label="Texto de la nota" spellcheck="false"></textarea></div>';
 document.body.append(noteReader);
@@ -5502,7 +5544,9 @@ function previewUnderPointer(){
  const p=screenToWorld(pointerPosition.x,pointerPosition.y);
  const hit=(showTexts&&(ownedNoteGPU.hit(p.x,p.y)||noteGPU.hit(p.x,p.y)))||gpuPick(pointerPosition.x,pointerPosition.y),item=hit&&items.get(hit.id);
  if(!item||!vaultContentVisible('items',item.id))return;
- if(item.type!=='text'){openVideoOriginal(item.id);return;}
+ if(item.type==='image'){openImageReader(item);return;}
+ if(item.type==='video'){openVideoReader(item);return;}
+ if(item.type!=='text')return;
  if(!canvasFind.hidden)closeCanvasFind();
  noteReaderId=item.id;noteReader.dataset.id=item.id;setNoteColor(noteReader,item.color);noteReader.classList.toggle('reader-hidden-background',Boolean(item.backgroundHidden));noteReaderText.value=cards.get(item.id)?.querySelector('textarea')?.value??item.text??'';noteReaderBefore=noteReaderText.value;noteReaderDirty=false;noteReaderText.readOnly=Boolean(item.locked);
  let position=0;if(vaultOwner('items',item.id))position=privateReadingPositions.get(item.id)||0;else try{position=Number(localStorage.getItem('apoxia.reading.'+item.id))||0;}catch{}
