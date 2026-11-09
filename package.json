@@ -13,7 +13,7 @@
     "pack": "electron-builder --dir --publish never",
     "dist:win:installer": "electron-builder --win nsis portable --x64 --publish never",
     "share:lan": "node scripts/share-lan.mjs",
-    "test": "node --test spatial.test.mjs svg-vector.test.mjs image-crop.test.mjs pinterest-media.test.mjs"
+    "test": "node --test spatial.test.mjs svg-vector.test.mjs image-crop.test.mjs pinterest-media.test.mjs verification/sfw-containers.test.mjs"
   },
   "engines": {
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
