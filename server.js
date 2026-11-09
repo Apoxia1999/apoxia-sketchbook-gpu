@@ -245,6 +245,14 @@ async function convert(job) {
   const image = path.join(mediaDir, `${id}.webp`);
   const thumbnail = path.join(mediaDir, `${id}-thumb.webp`);
   try {
+    if (item.type === 'audio') {
+      await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', input, '-vn', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', video]);
+      if (!items.has(id) && !deletedItems.has(id)) { await fsp.rm(video, {force:true}); return; }
+      Object.assign(item, {status:'ready', width:160, height:160, displayHeight:item.displayWidth, bytes:(await fsp.stat(video)).size});
+      arrangeImportBatch(item.importBatch?.id);
+      await save();
+      return;
+    }
     if (item.type === 'image') {
       const original = await probe(input).catch(() => null);
       if (original) { item.originalWidth = original.width; item.originalHeight = original.height; }
@@ -581,7 +589,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
       const sources=[],seen=new Set();
       for(const entry of input.objects){const source=maps[entry.kind]?.get(entry.id)||(entry.kind==='items'?deletedItems.get(entry.id):null),key=`${entry.kind}:${entry.id}`;
         if(!source||seen.has(key)||!storage.accessible(entry.kind,entry.id,session))return json(res,404,{error:'Contenido no disponible'});
-        if(entry.kind==='items'&&!['text','image','video'].includes(source.type))return json(res,400,{error:'Objeto no compatible'});
+        if(entry.kind==='items'&&!['text','image','video','audio'].includes(source.type))return json(res,400,{error:'Objeto no compatible'});
         if(entry.kind==='items'&&source.status!=='ready')return json(res,409,{error:'Espera a que termine la importación'});
         seen.add(key);sources.push({entry,source,owner:storage.owner(entry.kind,entry.id)});
       }
@@ -898,7 +906,8 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
         if(typeof linkedPath!=='string'||!path.isAbsolute(linkedPath)||!(await fsp.stat(linkedPath)).isFile()) return json(res,400,{error:'Archivo original inválido'});
       } else await receive(req, input);
       const x = Number(url.searchParams.get('x')), y = Number(url.searchParams.get('y'));
-      const type = url.searchParams.get('type') === 'image' ? 'image' : 'video';
+      const requestedType = url.searchParams.get('type');
+      const type = ['image', 'audio'].includes(requestedType) ? requestedType : 'video';
       const name = (url.searchParams.get('name') || (type === 'image' ? 'Imagen' : 'Vídeo')).slice(0, 160);
       const requestedWidth = Number(url.searchParams.get('displayWidth'));
       const displayWidth = Number.isFinite(requestedWidth) && requestedWidth > 0 ? Math.min(1e12, Math.max(1e-9, requestedWidth)) : 320;

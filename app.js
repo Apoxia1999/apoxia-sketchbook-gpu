@@ -772,6 +772,9 @@ let inversePinnedTargets = null;
 const screenFrozen = new Map();
 let lastSelectedItem = null;
 let spaceHeld = false;
+let spatialAudio = null;
+let spatialAudioContext = null;
+let spatialAudioFrame = 0;
 let modeBeforeSpace = null;
 let cameraFrame = 0;
 let previewFrame = 0;
@@ -1136,6 +1139,19 @@ function resizeNote(start, dx, dy, direction, base) {
   };
 }
 function applyCardChrome(card, item) {
+  if (item.type === 'audio') {
+    syncCardRenderParent(card, item);
+    card.hidden = !showMedia || !vaultContentVisible('items', item.id);
+    const diameter = (item.displayWidth || 160) * camera.scale;
+    card.style.left = `${camera.x + item.x * camera.scale}px`;
+    card.style.top = `${camera.y + item.y * camera.scale}px`;
+    card.style.transformOrigin = 'top left';
+    card.style.transform = `scale(${diameter / 160})`;
+    card.style.width = '160px';
+    card.querySelector('.video-frame').style.height = '160px';
+    card.classList.toggle('actions-ready', diameter >= 100);
+    return;
+  }
   if(item.type==='text'){card.classList.toggle('note-detail-view',!noteInteractionAllowed(item));const model=noteGPU.models.get(item.id)||ownedNoteGPU.models.get(item.id),unit=noteLayoutUnit(item);if(!model||model.x!==item.x||model.y!==item.y||model.w!==(item.displayWidth||300)||model.h!==(item.displayHeight||160))noteGPUSceneDirty=true;}
   syncCardRenderParent(card, item);
   if (syncCardViewport(card, item)) return;
@@ -1289,6 +1305,7 @@ for (const button of document.querySelectorAll('[data-background]')) {
 }
 function renderCamera() {
   updateScreenFrozen();
+  updateSpatialAudio();
   if (gesture?.type === 'pan' && gesture.frozen?.length) applyInversePanSnapshot(gesture.frozen, gesture.inverseDx, gesture.inverseDy);
   if (gesture?.type === "zoom" && gesture.frozen?.length) applyInverseSnapshot(gesture.frozen, gesture.scale / camera.scale, gesture.worldX, gesture.worldY);
   if (cameraFrame) { cancelAnimationFrame(cameraFrame); cameraFrame = 0; }
@@ -1708,7 +1725,7 @@ viewport.addEventListener('pointerdown',event=>{
 window.addEventListener('blur',()=>{if(gesture?.type==='shape')endGesture({type:'pointercancel',pointerId:gesture.pointer});});
 function gpuInteractive(item,card){return playingVideoId===item.id||gpuHoverId===item.id||cardPinned(card,item)||screenFrozen.has(`items:${item.id}`);}
 window.addEventListener('apoxia-svg-error',event=>{const item=items.get(event.detail.id);if(item)toast(`${item.name}: ${event.detail.message}`);});
-function gpuReady(item){return item?.type!=='text'&&item?.status==='ready';}
+function gpuReady(item){return ['image','video'].includes(item?.type)&&item?.status==='ready';}
 function gpuPick(x,y){if(!showMedia)return null;const p=screenToWorld(x,y);return ownedPhotoGPU.hit(p.x,p.y)||photoGPU.hit(p.x,p.y);}
 function setGPUHover(id){if(gpuHoverId===id)return;const previous=gpuHoverId;gpuHoverId=id;for(const key of [previous,id]){const a=items.get(key),card=cards.get(key);if(a&&card){applyCardChrome(card,a);if(key!==id&&a.type==='video')unloadMedia(card);}}}
 function syncGPUHover(event){if(noteHoverId){setGPUHover(null);return;}if(gesture||vaultDrag||!showMedia)return;const target=event.target;if(target.closest('button,a,textarea,.resize-handle,.vault-frame,.canvas-writing'))return;const hit=gpuPick(event.clientX,event.clientY);setGPUHover(hit&&!items.get(hit.id)?.locked?hit.id:null);}
@@ -2602,6 +2619,98 @@ viewport.addEventListener('dblclick',event=>{
   if(item?.type!=='video'||!item.locked)return;
   event.preventDefault();event.stopImmediatePropagation();openVideoOriginal(item.id);
 },{capture:true});
+
+function stopSpatialAudio() {
+  cancelAnimationFrame(spatialAudioFrame);
+  spatialAudioFrame = 0;
+  if (!spatialAudio) return;
+  const {element, source, gain, panner, id} = spatialAudio;
+  element.pause();
+  element.removeAttribute('src');
+  element.load();
+  source.disconnect(); gain.disconnect(); panner.disconnect();
+  const button = cards.get(id)?.querySelector('.audio-play');
+  if (button) { button.textContent = '▶'; button.setAttribute('aria-label', 'Reproducir audio'); }
+  cards.get(id)?.classList.remove('audio-playing');
+  spatialAudio = null;
+}
+function updateSpatialAudio() {
+  const state = spatialAudio;
+  if (!state) return;
+  const item = items.get(state.id);
+  if (!item || !showMedia || !vaultContentVisible('items', item.id)) { stopSpatialAudio(); return; }
+  const diameter = item.displayWidth * camera.scale;
+  const x = camera.x + (item.x + item.displayWidth / 2) * camera.scale;
+  const y = camera.y + (item.y + item.displayHeight / 2) * camera.scale;
+  const outOfRange = diameter < 18 || x + diameter / 2 < 0 || x - diameter / 2 > innerWidth || y + diameter / 2 < 0 || y - diameter / 2 > innerHeight;
+  cards.get(state.id)?.classList.toggle('audio-playing', !outOfRange);
+  if (outOfRange) {
+    state.distancePaused = true;
+    state.element.pause();
+    return;
+  }
+  if (state.distancePaused) {
+    state.distancePaused = false;
+    state.element.play().then(() => {
+      if (spatialAudio !== state || state.distancePaused) state.element.pause();
+    }).catch(error => {
+      if (spatialAudio !== state || state.distancePaused) return;
+      stopSpatialAudio();
+      toast(error.message);
+    });
+  }
+  const proximity = Math.max(0, Math.min(1, (diameter - 18) / 142));
+  const edge = Math.max(0, Math.min(1, (Math.min(x, innerWidth-x, y, innerHeight-y) + diameter/2) / (diameter/2 + 80)));
+  state.gain.gain.setTargetAtTime(proximity * proximity * edge, spatialAudioContext.currentTime, .08);
+  state.panner.pan.setTargetAtTime(Math.max(-1, Math.min(1, (x - innerWidth/2) / (innerWidth/2))), spatialAudioContext.currentTime, .08);
+}
+function animateSpatialAudio() {
+  updateSpatialAudio();
+  const state = spatialAudio;
+  if (!state) return;
+  const time = performance.now() / 1000;
+  const paths = cards.get(state.id)?.querySelectorAll('.audio-wave');
+  paths?.forEach((path, ring) => {
+    const points = [];
+    for (let i=0; i<=128; i++) {
+      const angle = i * Math.PI * 2 / 128;
+      const radius = 43 + Math.sin(angle * (3 + ring) + time * (1.5 + ring * .4)) * 3.5
+        + Math.sin(angle * 5 - time * 1.2 + ring) * 1.8;
+      points.push(`${i?'L':'M'}${50+Math.cos(angle)*radius} ${50+Math.sin(angle)*radius}`);
+    }
+    path.setAttribute('d', points.join(' ')+'Z');
+  });
+  spatialAudioFrame = requestAnimationFrame(animateSpatialAudio);
+}
+window.addEventListener('pagehide', stopSpatialAudio);
+function setupSpatialAudio(card, item, frame) {
+  frame.innerHTML = '<svg class="audio-rings" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="43"/><path class="audio-wave"/><path class="audio-wave"/></svg><button class="audio-play" type="button" aria-label="Reproducir audio">▶</button>';
+  const button = frame.querySelector('button');
+  button.addEventListener('pointerdown', event => event.stopPropagation());
+  button.addEventListener('click', async event => {
+    event.stopPropagation();
+    if (spatialAudio?.id === item.id) { stopSpatialAudio(); return; }
+    stopSpatialAudio();
+    try {
+      spatialAudioContext ||= new AudioContext();
+      const element = new Audio(privateMediaURL(`/media/${item.id}.mp4`, item.id));
+      element.loop = true;
+      const source = spatialAudioContext.createMediaElementSource(element);
+      const gain = spatialAudioContext.createGain(); gain.gain.value = 0;
+      const panner = spatialAudioContext.createStereoPanner();
+      source.connect(gain); gain.connect(panner); panner.connect(spatialAudioContext.destination);
+      const state = {id:item.id, element, source, gain, panner, distancePaused:true};
+      spatialAudio = state;
+      await spatialAudioContext.resume();
+      if (spatialAudio !== state) return;
+      updateSpatialAudio();
+      if (spatialAudio !== state) return;
+      button.textContent = 'Ⅱ'; button.setAttribute('aria-label', 'Pausar audio');
+      animateSpatialAudio();
+    } catch (error) { if (spatialAudio?.id === item.id) stopSpatialAudio(); toast(error.message); }
+  });
+}
+
 function setupVideo(card, item, frame) {
   const poster = document.createElement('img');
   // The GPU owns the poster; the DOM retains playback and controls.
@@ -2801,6 +2910,7 @@ function updateCard(item) {
     scheduleNotePreviewRender();
     return;
   }
+  if (item.status === 'ready' && item.type === 'audio' && !frame.querySelector('.audio-play')) setupSpatialAudio(card, item, frame);
   if (item.status === 'ready' && item.type === 'video' && !frame.querySelector('video')) setupVideo(card, item, frame);
   else if (item.status === 'ready' && item.type === 'image' && !frame.querySelector('img')) {
     const image = document.createElement('img');
@@ -2838,6 +2948,7 @@ function updateCard(item) {
   if (item.status === 'ready' && item.type === 'video' && item.originalAvailable) setupOriginalDrag(item, exportButton);
 }
 function removeCard(id) {
+  if (spatialAudio?.id === id) stopSpatialAudio();
   gpuSceneDirty=true;noteGPUSceneDirty=true;activeNoteCards.delete(id);if(noteHoverId===id)noteHoverId=null;
   activeMediaCards.delete(id);gpuRanks.delete(id);gpuConnectionSources.delete(id);gpuUIIds.delete(id);if(gpuHoverId===id)gpuHoverId=null;
   scheduleConnectionRender();
@@ -3733,7 +3844,7 @@ async function addFiles(files, x, y, options={}) {
   finally { canvasActions--; }
 }
 function isMediaFile(file) {
-  return /^(video|image)\//.test(file.type) || /\.(mp4|mov|mkv|webm|avi|m4v|jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif|svg)$/i.test(file.name);
+  return /^(video|image|audio)\//.test(file.type) || /\.(mp3|wav|ogg|oga|opus|flac|m4a|aac|aiff|mp4|mov|mkv|webm|avi|m4v|jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif|svg)$/i.test(file.name);
 }
 async function createFileClip(file,x,y) {
   if(!window.apoxiaDesktop?.linkPickedFile) throw new Error(i18n.t('Los accesos a archivos locales requieren la app de escritorio'));
@@ -3770,7 +3881,7 @@ function prepareNativeImage(file){if(file.type==='image/svg+xml'||/\.svg$/i.test
 function pumpPrepare(){while(imagePrepareWorkers.length<2){const state={worker:new Worker('/gpu-worker.js'),busy:false};state.worker.onmessage=async({data})=>{const task=state.task;state.busy=false;state.task=null;data.bitmap?.close();if(data.error)task.reject(Error(data.error));else{const bytes=new Uint8Array(await data.blob.arrayBuffer());let binary='';for(const byte of bytes)binary+=String.fromCharCode(byte);task.resolve({width:data.width,height:data.height,thumbnail:btoa(binary)});}pumpPrepare();};state.worker.onerror=()=>{state.task?.reject(Error('No se pudo preparar la imagen'));state.busy=false;state.task=null;pumpPrepare();};imagePrepareWorkers.push(state);}for(const state of imagePrepareWorkers){if(state.busy)continue;const task=imagePrepareQueue.shift();if(!task)continue;state.busy=true;state.task=task;state.worker.postMessage({file:task.file,size:64,prepare:true});}}
 async function addFilesImpl(files, x, y, options={}) {
   const supported = [...files].filter(isMediaFile);
-  if (!supported.length) return toast(i18n.t('Suelta vídeos o imágenes'));
+  if (!supported.length) return toast(i18n.t('Suelta vídeos, imágenes o audio'));
   const targetVault = vaults.get(vaultScopeAtScreen(x, y));
   if (targetVault && !targetVault.open) return toast(i18n.t('Abre la Vault antes de importar dentro'));
   const base = screenToWorld(x, y);
@@ -3785,8 +3896,8 @@ async function addFilesImpl(files, x, y, options={}) {
   window.__gpuImportProgress={total:supported.length,complete:0,errors:0,active:true};
   const importOne=async(index)=>{
     const file = supported[index],svgFile=file.type==='image/svg+xml'||/\.svg$/i.test(file.name);let vectorGeometry=null;
-    const type = file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif|svg)$/i.test(file.name) ? 'image' : 'video';
-    const query = new URLSearchParams({ name: svgFile&&!/\.svg$/i.test(file.name)?file.name+'.svg':file.name, type, displayWidth: String(displayWidth), chromeScale: String(1 / scale), x: String(base.x + (index % columns) * 340 / scale), y: String(base.y + Math.floor(index / columns) * 200 / scale), importBatch, batchIndex: String(index), batchX: String(base.x), batchY: String(base.y),batchColumns:String(columns) });
+    const type = (file.type.startsWith('audio/') || /\.(mp3|wav|ogg|oga|opus|flac|m4a|aac|aiff)$/i.test(file.name)) ? 'audio' : file.type.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|heic|heif|tif|tiff|bmp|avif|svg)$/i.test(file.name) ? 'image' : 'video';
+    const query = new URLSearchParams({ name: svgFile&&!/\.svg$/i.test(file.name)?file.name+'.svg':file.name, type, displayWidth: String(type === 'audio' ? displayWidth / 2 : displayWidth), chromeScale: String(1 / scale), x: String(base.x + (index % columns) * 340 / scale), y: String(base.y + Math.floor(index / columns) * 200 / scale), importBatch, batchIndex: String(index), batchX: String(base.x), batchY: String(base.y),batchColumns:String(columns) });
     try {
       const headers={'Content-Type':'application/octet-stream'};
       if(type==='image'){try{prepareAhead(index);const prepared=await (preparedImages.get(index)||prepareNativeImage(file));preparedImages.delete(index);prepareAhead(index+1);if(prepared?.error)throw prepared.error;if(svgFile&&!prepared)throw new Error('No se pudo leer el SVG. Usa contornos de segmentos rectos, sin rellenos ni efectos.');vectorGeometry=prepared?.vector;if(prepared&&prepared.thumbnail.length<12000){query.set('native','1');query.set('originalWidth',prepared.width);query.set('originalHeight',prepared.height);headers['X-Apoxia-Thumbnail']=prepared.thumbnail;}}catch(error){if(svgFile)throw error;/* Other unsupported formats use the conversion pipeline. */}}
@@ -3876,6 +3987,7 @@ function selectRectangle(g){
  const a=screenToWorld(Math.min(g.startX,g.endX),Math.min(g.startY,g.endY)),b=screenToWorld(Math.max(g.startX,g.endX),Math.max(g.startY,g.endY));
  const records=[...photoGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y),...ownedPhotoGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y),...noteGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y),...ownedNoteGPU.index.query(a.x,a.y,b.x-a.x,b.y-a.y)];
  const candidates=new Map(records.map(model=>[`items:${model.id}`,{kind:'items',id:model.id}]));
+ for(const object of items.values())if(object.type==='audio')candidates.set(`items:${object.id}`,{kind:'items',id:object.id});
  for(const object of writings.values())candidates.set(`writings:${object.id}`,{kind:'writings',id:object.id});
  if(showStrokes)for(const object of strokes.values())if(object.shape)candidates.set(`strokes:${object.id}`,{kind:'strokes',id:object.id});
  for(const [key,entry] of candidates){const object=magicMap(entry.kind).get(entry.id);if(!object||object.locked||!vaultContentVisible(entry.kind,entry.id)||vaultOwner(entry.kind,entry.id)!==g.scope)continue;

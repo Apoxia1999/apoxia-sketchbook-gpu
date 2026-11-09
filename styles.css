@@ -649,3 +649,13 @@ button:focus-visible{outline-color:var(--theme-accent)}
 .image-reader button{position:absolute;top:16px;right:20px;z-index:1;padding:8px 12px;border:1px solid var(--theme-border);border-radius:8px;background:var(--theme-panel);color:var(--theme-panelText);cursor:pointer}
 
 .video-reader video{display:block;width:100%;height:100%;object-fit:contain;outline:none}
+
+.audio-card{background:transparent!important;border:0!important;box-shadow:none!important;overflow:visible!important}
+.audio-card .card-head,.audio-card .card-foot{display:none}
+.audio-card .video-frame{position:relative;overflow:visible;border-radius:50%;background:var(--theme-canvas);aspect-ratio:1}
+.audio-rings{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:var(--theme-panelText);stroke-width:1.1;overflow:visible;pointer-events:none}
+.audio-rings circle{stroke-width:1.5}
+.audio-play{position:absolute;left:30%;top:30%;width:40%;height:40%;border:0;border-radius:50%;background:transparent;color:var(--theme-panelText);font-size:24px;cursor:pointer;padding:0}
+.audio-card .media-actions{top:-32px}
+
+.audio-card:not(.audio-playing) .audio-wave{display:none}
