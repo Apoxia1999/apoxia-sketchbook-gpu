@@ -6,8 +6,8 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-WorkingDirectory=%h/Work/referencias
-ExecStart=%h/Work/referencias/node_modules/electron/dist/electron %h/Work/referencias
+WorkingDirectory=__REPO_DIR__
+ExecStart=__REPO_DIR__/node_modules/electron/dist/electron __REPO_DIR__
 Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin:/bin
 Environment=APOXIA_KEEP_SERVER=1
 Restart=always

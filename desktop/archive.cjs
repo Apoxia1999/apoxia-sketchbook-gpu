@@ -164,7 +164,7 @@ async function extractZip(file,destination,progress) {
       if(entry.fileName.endsWith('/')) {await fs.mkdir(target,{recursive:true,mode:0o700});continue;}
       await fs.mkdir(path.dirname(target),{recursive:true,mode:0o700});
       const input=await new Promise((resolve,reject)=>zip.openReadStream(entry,(error,stream)=>error?reject(error):resolve(stream)));
-      const mode=(entry.externalFileAttributes>>>16)&0o111?0o700:0o600;
+      const mode=0o600;
       let checksum=0;
       await pipeline(input,new Transform({transform(chunk,encoding,callback){checksum=crc32.unsigned(chunk,checksum);completed+=chunk.length;progress({phase:'import',completed,total});callback(null,chunk);}}),nativeFs.createWriteStream(target,{flags:'wx',mode}));
       if(checksum!==entry.crc32) throw new Error('El ZIP está dañado');
@@ -181,8 +181,9 @@ async function extractZip(file,destination,progress) {
       if(record.relative) {
         const relative=relativeFile(record.relative);
         if(!relative.startsWith('linked-files/') || !(await fs.stat(path.join(data,relative))).isFile()) throw new Error('Falta un archivo vinculado en el ZIP');
+        if (/\.(exe|com|bat|cmd|ps1|vbs|vbe|wsf|wsh|msi|scr|desktop|appimage|sh|bash|js|mjs|cjs|py|pl|rb)$/i.test(relative)) continue;
         registry[id]=path.join(data,relative);
-      } else if(typeof record.external==='string') registry[id]=record.external;
+      }
     }
     return {data,registry,preferences};
   } finally {zip.close();}

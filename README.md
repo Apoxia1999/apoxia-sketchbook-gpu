@@ -164,3 +164,9 @@ En **Opciones → Scribe → Fuente de Scribe** puedes elegir Patrick Hand, Glor
 Puedes arrastrar un pin público de Pinterest al canvas para importar su vídeo cuando Pinterest proporcione un MP4 o WebM accesible; la miniatura no sustituye al vídeo. También se aceptan enlaces directos a vídeos del CDN de Pinterest. El archivo se guarda como un vídeo normal en el lugar donde se soltó, aunque se mueva el canvas durante la descarga. Los pines de imagen siguen importándose como imágenes. Si el pin solo ofrece streaming HLS/DASH, contenido externo o no es accesible sin iniciar sesión, la app muestra un aviso en vez de guardar la miniatura como vídeo. El límite por vídeo descargado es de 256 MB. Las búsquedas y descargas no bloquean las demás ediciones del canvas.
 
 `npm test` comprueba la resolución segura de pines y `verification/test-pinterest-drop.cjs` y `verification/test-pinterest-concurrency.mjs` verifican el arrastre y la edición durante la descarga con datos temporales.
+
+## SFW y red local
+Los contenedores SFW guardan su contenido abierto. Un canvas con Vaults cifradas debe exportarse desde la aplicación original antes de usarlo en SFW.
+El acceso LAN usa HTTP sin cifrado y expone la sesión a la red local. Úsalo en redes de confianza. En otras redes, configura un proxy inverso HTTPS (Caddy o nginx) y APOXIA_LAN_HOST con la dirección LAN del proxy.
+Las unidades desktop/*.service.example son plantillas. Sustituye __REPO_DIR__ por la ruta absoluta del proyecto y __LAN_IP__ por la IP local del relay.
+Instala las copias sin .example en ~/.config/systemd/user/ y ejecuta systemctl --user daemon-reload antes de activarlas.

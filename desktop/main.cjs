@@ -7,7 +7,7 @@ const path = require('node:path');
 const { randomBytes, randomUUID } = require('node:crypto');
 const { spawn } = require('node:child_process');
 
-app.setName('Apoxia SketchBook GPU');
+app.setName('Apoxy Sketchbook Safe for Work');
 const root = path.resolve(__dirname, '..');
 let window, backend, origin, token, quitting = false, closing = false;
 let config = {}, preferences = {}, links = {};
@@ -106,6 +106,30 @@ async function closeApp() {
 // systemd stops the main process first, leaving the backend alive long enough
 // to flush edits and seal open Vaults before the app exits.
 for(const signal of ['SIGTERM','SIGINT'])process.on(signal,()=>{if(!quitting)closeApp();});
+async function copyCanvasSafely(source, destination) {
+  const stateFile = path.join(source, 'state.json');
+  const before = await fs.stat(stateFile);
+  try {
+    await fs.cp(source, destination, {
+      recursive: true, dereference: false,
+      filter: value => !['.server.lock', 'tmp', 'state.json.tmp'].includes(path.basename(value))
+    });
+    const pending = [destination];
+    while (pending.length) {
+      const directory = pending.pop();
+      for (const entry of await fs.readdir(directory, {withFileTypes:true})) {
+        const filename = path.join(directory, entry.name);
+        if (entry.isSymbolicLink()) throw new Error('Este canvas contiene enlaces simbólicos no permitidos');
+        if (entry.isDirectory()) pending.push(filename);
+      }
+    }
+    const after = await fs.stat(stateFile);
+    if (before.mtimeMs !== after.mtimeMs || before.size !== after.size) throw new Error('El canvas ha cambiado durante la copia. Cierra su servidor y vuelve a intentarlo.');
+  } catch (error) {
+    await fs.rm(destination, {recursive:true, force:true});
+    throw error;
+  }
+}
 async function importCanvas() {
   if(transferPromise) throw new Error(t("Ya hay una operación de archivos en curso"));
   const { canceled, filePaths } = await dialog.showOpenDialog(window, { title: t('Importar una copia de la carpeta data de otro canvas'), properties: ['openDirectory'] });
@@ -116,7 +140,7 @@ async function importCanvas() {
   try { await fs.access(path.join(source, '.server.lock')); throw new Error(t('Cierra el servidor o la app que utiliza ese canvas antes de copiarlo.')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const destination = path.join(profile, 'canvases', `importado-${Date.now()}`);
-  await fs.cp(source, destination, { recursive: true, dereference: false, filter: value => !['.server.lock', 'tmp'].includes(path.basename(value)) });
+  await copyCanvasSafely(source, destination);
   config.canvasDir = destination; await writeJson(configPath, config);
   app.relaunch(); app.quit();
 }
@@ -253,6 +277,8 @@ ipcMain.handle('desktop:open-original', async (event, id) => {
   const file=await fs.realpath(managed);
   if(!(await fs.stat(file)).isFile())
     throw new Error(t('Ruta del original inválida.'));
+  const mediaExtensions = new Set(['.mp4','.m4v','.webm','.mov','.mkv','.avi','.jpg','.jpeg','.png','.webp','.gif','.avif','.tif','.tiff','.bmp','.svg','.heic','.heif','.mp3','.wav','.m4a','.aac','.flac','.ogg','.pdf']);
+  if (!mediaExtensions.has(path.extname(file).toLowerCase())) { shell.showItemInFolder(managed); return; }
   await openLocalFile(file);
 });
 ipcMain.handle('desktop:clipboard-image',async event=>{
@@ -294,12 +320,12 @@ else {
       if(!state || !Array.isArray(state.items)) throw new Error(t('El canvas de origen no contiene state.json válido.'));
       try {await fs.access(path.join(source,'.server.lock'));throw new Error(t('Cierra primero el servidor del canvas de origen.'));} catch(error) {if(error.code!=='ENOENT') throw error;}
       const imported=path.join(profile,'canvases',`importado-${Date.now()}`);
-      await fs.cp(source,imported,{recursive:true,dereference:false,filter:value=>!['.server.lock','tmp'].includes(path.basename(value))});
+      await copyCanvasSafely(source, imported);
       canvasDir=imported;config.canvasDir=imported;
     }
     const port = await startBackend(config.port || 0).catch(error => { if (error.code === 'EADDRINUSE') return startBackend(0); throw error; });
     config.port = port; await writeJson(configPath, config);
-    window = new BrowserWindow({ title: 'Apoxia SketchBook', width: config.width || 1440, height: config.height || 960, minWidth: 700, minHeight: 500,
+    window = new BrowserWindow({ title: 'Apoxy Sketchbook Safe for Work', width: config.width || 1440, height: config.height || 960, minWidth: 700, minHeight: 500,
       icon: path.join(root, 'build/icon.png'), backgroundColor: '#132124', show: false, autoHideMenuBar: true,
       webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, spellcheck: false },
     });

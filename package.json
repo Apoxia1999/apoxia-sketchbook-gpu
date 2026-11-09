@@ -28,8 +28,8 @@
   "author": "Apoxia",
   "main": "desktop/main.cjs",
   "build": {
-    "appId": "com.apoxia.sketchbook.gpu",
-    "productName": "Apoxia SketchBook GPU",
+    "appId": "com.apoxia.sketchbook.sfw",
+    "productName": "Apoxy Sketchbook Safe for Work",
     "asar": true,
     "npmRebuild": false,
     "directories": {
@@ -116,6 +116,7 @@
   "desktopName": "apoxia-sketchbook-gpu.desktop",
   "dependencies": {
     "yauzl": "3.4.0",
-    "yazl": "3.3.1"
+    "yazl": "3.3.1",
+    "buffer-crc32": "1.0.0"
   }
 }

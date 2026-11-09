@@ -66,6 +66,7 @@ const server=http.createServer(async(req,res)=> {
     if(headers.origin)headers.origin=`http://127.0.0.1:${backend.port}`;
     headers.cookie=(headers.cookie || '').split(';').filter(part=>!part.trim().startsWith('apoxiaLan=')).join(';');
     const upstream=http.request({host:'127.0.0.1',port:backend.port,path:req.url,method:req.method,headers},async reply=> {
+      if (reply.statusCode >= 400) credentialTime = 0;
       const responseHeaders={...reply.headers,'referrer-policy':'no-referrer'};
       if(url.pathname==='/desktop-bootstrap.js' && reply.statusCode===200) {
         try {
@@ -88,6 +89,6 @@ for(;;) {
 }
 const renew=setInterval(()=>renewSharing().catch(()=>{credentialTime=0;}),5000);
 server.requestTimeout=0;
-server.listen(port,address,()=>console.log(`Apoxia SketchBook · edición LAN\n${lanOrigin}/?access=${access}\nMantén Electron y este proceso abiertos. Ctrl+C termina la sesión compartida.`));
+server.listen(port,address,()=>console.log(`Apoxia SketchBook · edición LAN\n${lanOrigin}/?access=${access}\nMantén Electron y este proceso abiertos. Ctrl+C termina la sesión compartida.\nAviso: LAN usa HTTP sin cifrado. Comparte solo en redes de confianza o mediante un proxy HTTPS.`));
 server.on('error',error=>{clearInterval(renew);console.error(error.message);process.exitCode=1;});
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>{clearInterval(renew);server.close();server.closeAllConnections();});

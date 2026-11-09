@@ -400,95 +400,22 @@ function renderVaults() {
     nodes.positionLock.disabled = Boolean(vault.closing);
     nodes.resize.hidden = Boolean(vault.locked || vault.closing);
     nodes.frame.setAttribute('aria-busy', String(Boolean(vault.closing)));
-    nodes.form.hidden = Boolean(vault.open && !vault.closing && !vault.configuring);
-    nodes.hintBox.hidden=Boolean(vault.open||vault.closing||!vault.configured);
-    renderVaultHint(vault);
-    nodes.password.disabled = Boolean(vault.closing);
-    nodes.lock.hidden = false;
-    nodes.lock.querySelector('path').setAttribute('d', vault.open ? 'M12 64V23C12 10 19 5 32 5S52 10 52 23V40' : 'M12 64V23C12 10 19 5 32 5S52 10 52 23V52');
-    nodes.lock.setAttribute('aria-label', vault.open ? i18n.t('Cerrar Vault') : i18n.t('Introducir contraseña para abrir Vault'));
-    nodes.lock.title = vault.open ? i18n.t('Cerrar Vault') : i18n.t('Abrir Vault');
-    nodes.lock.setAttribute('aria-expanded', String(Boolean(vault.open)));
-    nodes.form.classList.toggle('vault-configured', vault.configured);
-    const status = nodes.form.querySelector('small');
-    status.textContent = !vault.configured ? i18n.t('Guarda tu contraseña: no se puede recuperar.') : !vault.encrypted ? i18n.t('Pendiente de cifrado: abre con tu contraseña para migrar el contenido.') : '';
-    status.hidden = !status.textContent;
-    nodes.confirm.required = !vault.configured;
-    nodes.remove.hidden = Boolean(vault.closing);
-    nodes.remove.title = vault.open ? i18n.t('Borrar caja y conservar su contenido') : i18n.t('Borrar Vault y su contenido');
-    nodes.remove.setAttribute('aria-label', nodes.remove.title);
-    nodes.confirm.hidden = vault.configured;
-    nodes.password.placeholder = vault.configured ? '*****' : i18n.t('Contraseña');
+    nodes.remove.hidden = false;
+    nodes.remove.title = i18n.t('Borrar caja y conservar su contenido');
     const screenWidth = vault.width * camera.scale, screenHeight = vault.height * camera.scale;
     const small = screenWidth < 180 || screenHeight < 120;
     nodes.frame.classList.toggle('vault-small', small);
-    nodes.submit.textContent = vault.configured ? i18n.t('Abrir') : i18n.t('Cifrar');
+
   }
-}
-function cancelVaultPasswordSetup(outsideTarget = null) {
-  if(vaultBusy) return false;
-  let cancelled=false;
-  for(const vault of vaults.values()) {
-    if(!vault.open || !vault.configuring || vault.configured || vault.closing) continue;
-    const nodes=vaultNodes.get(vault.id);
-    if(outsideTarget && nodes?.form.contains(outsideTarget)) continue;
-    vault.configuring=false;
-    if(nodes) {
-      nodes.password.value=''; nodes.confirm.value='';
-      nodes.form.querySelector('.vault-error').textContent='';
-      if(nodes.form.contains(document.activeElement)) document.activeElement.blur();
-    }
-    cancelled=true;
-  }
-  if(cancelled) renderVaults();
-  return cancelled;
-}
-// Consume the dismissal so clicking outside cannot also draw or activate a button.
-let vaultSetupDismissedClick=null;
-window.addEventListener('pointerdown',event=> {
-  if(!cancelVaultPasswordSetup(event.target)) return;
-  vaultSetupDismissedClick={target:event.target,time:performance.now()};
-  event.preventDefault(); event.stopImmediatePropagation();
-},true);
-window.addEventListener('click',event=> {
-  const dismissed=vaultSetupDismissedClick; vaultSetupDismissedClick=null;
-  if(dismissed && dismissed.target===event.target && performance.now()-dismissed.time<1000) {
-    event.preventDefault(); event.stopImmediatePropagation();
-  }
-},true);
-window.addEventListener('keydown',event=> {
-  if(event.key==='Escape' && cancelVaultPasswordSetup()) {
-    event.preventDefault(); event.stopImmediatePropagation();
-  }
-},true);
-function renderVaultHint(vault){
- const nodes=vaultNodes.get(vault.id);if(!nodes)return;
- const signature=JSON.stringify(vault.hint||[]);if(nodes.hintSVG.dataset.signature===signature)return;
- nodes.hintSVG.dataset.signature=signature;
- nodes.hintSVG.replaceChildren(...(vault.hint||[]).map(points=>{const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('d',points.map((p,i)=>`${i?'L':'M'}${p[0]} ${p[1]}`).join(' ')+(points.length===1?`l.01 0`:''));return path;}));
-}
-function setupVaultHint(vault){
- const nodes=vaultNodes.get(vault.id),svg=nodes.hintSVG;let drawing=null,writes=Promise.resolve();
- const save=(before,after)=>{writes=writes.catch(()=>{}).then(async()=>{await apiChange(`/api/vaults/${vault.id}/hint`,'PATCH',{hint:after});remember({label:'pista de Vault',undo:()=>restore(before),redo:()=>restore(after)});}).catch(error=>toast(error.message));};
- const restore=async hint=>{await apiChange(`/api/vaults/${vault.id}/hint`,'PATCH',{hint});vault.hint=structuredClone(hint);renderVaultHint(vault);};
- const point=event=>{const rect=svg.getBoundingClientRect();return [Math.max(0,Math.min(640,(event.clientX-rect.left)/rect.width*640)),Math.max(0,Math.min(160,(event.clientY-rect.top)/rect.height*160))];};
- svg.addEventListener('pointerdown',event=>{event.preventDefault();event.stopPropagation();if(event.button!==0||vault.open||vault.closing||(vault.hint||[]).length>=200)return;const before=structuredClone(vault.hint||[]);vault.hint||=[];const points=[point(event)];vault.hint.push(points);drawing={pointer:event.pointerId,before,points};svg.setPointerCapture(event.pointerId);renderVaultHint(vault);});
- svg.addEventListener('pointermove',event=>{if(!drawing||drawing.pointer!==event.pointerId)return;event.preventDefault();event.stopPropagation();const next=point(event),last=drawing.points.at(-1);if(drawing.points.length<2000&&Math.hypot(next[0]-last[0],next[1]-last[1])>1){drawing.points.push(next);renderVaultHint(vault);}});
- const end=event=>{if(!drawing||drawing.pointer!==event.pointerId)return;event.stopPropagation();const current=drawing;drawing=null;if(event.type==='pointercancel'){vault.hint=current.before;renderVaultHint(vault);}else save(current.before,structuredClone(vault.hint));};
- svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);
- nodes.hintBox.querySelector('button').addEventListener('pointerdown',event=>event.stopPropagation());
- nodes.hintBox.querySelector('button').addEventListener('click',event=>{event.stopPropagation();const before=structuredClone(vault.hint||[]);vault.hint=[];renderVaultHint(vault);save(before,[]);});
 }
 function createVaultNode(vault) {
   const back = document.createElement('div'); back.className = 'vault-back'; vaultBackdrop.append(back);
   const frame = document.createElement('section'); frame.className = 'vault-frame'; frame.setAttribute('aria-label', 'Vault');
-  frame.innerHTML = i18n.html(`<header class="vault-head"><button class="vault-lock" type="button" aria-label="Cerrar Vault" title="Cerrar Vault"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 64V23C12 10 19 5 32 5S52 10 52 23V52"/></svg></button><button class="vault-position-lock" type="button" aria-label="Bloquear movimiento y tamaño" aria-pressed="false"></button><button class="vault-remove" type="button" title="Borrar Vault y su contenido" aria-label="Borrar Vault y su contenido">×</button></header><div class="vault-edge vault-left"></div><div class="vault-edge vault-right"></div><div class="vault-edge vault-bottom"></div><form class="vault-form"><label><span class="vault-cipher" aria-hidden="true">*****</span><input aria-label="Contraseña de la Vault" class="vault-password" type="password" autocomplete="off" maxlength="1024" required placeholder="Contraseña"></label><div class="vault-hint" hidden><svg viewBox="0 0 640 160" preserveAspectRatio="none" aria-label="Dibuja una nota o pista para esta Vault"></svg><button class="vault-hint-clear" type="button" aria-label="Borrar pista dibujada">Borrar</button></div><input class="vault-confirm" aria-label="Confirmar contraseña" type="password" autocomplete="off" maxlength="1024" placeholder="Repetir"><button type="submit">Crear y abrir</button><p class="vault-error" role="status"></p><small></small></form><button class="vault-resize" type="button" title="Escalar Vault y contenido" aria-label="Escalar Vault y contenido">◢</button>`);
+  frame.innerHTML = i18n.html(`<header class="vault-head"><button class="vault-position-lock" type="button" aria-label="Bloquear movimiento y tamaño" aria-pressed="false"></button><button class="vault-remove" type="button" title="Borrar Vault y su contenido" aria-label="Borrar Vault y su contenido">×</button></header><div class="vault-edge vault-left"></div><div class="vault-edge vault-right"></div><div class="vault-edge vault-bottom"></div><button class="vault-resize" type="button" title="Escalar Vault y contenido" aria-label="Escalar Vault y contenido">◢</button>`);
   vaultLayer.append(frame);
-  const form = frame.querySelector('form'), password = frame.querySelector('.vault-password'), confirm = frame.querySelector('.vault-confirm');
-  const lock = frame.querySelector('.vault-lock'), remove = frame.querySelector('.vault-remove'), submit = form.querySelector('button[type=submit]');
+  const remove = frame.querySelector('.vault-remove');
   const positionLock = frame.querySelector('.vault-position-lock'), resize = frame.querySelector('.vault-resize');
-  vaultNodes.set(vault.id, { frame, back, form, password, confirm, lock, remove, submit, positionLock, resize, hintBox:frame.querySelector('.vault-hint'), hintSVG:frame.querySelector('.vault-hint svg') });
-  setupVaultHint(vault);
+  vaultNodes.set(vault.id, {frame, back, remove, positionLock, resize});
   positionLock.addEventListener('pointerdown', event => event.stopPropagation());
   positionLock.addEventListener('click', async event => {
     event.stopPropagation();
@@ -559,101 +486,6 @@ function createVaultNode(vault) {
     finally { vaultBusy = false; refreshVaultVisibility(); updateImageSources(); }
   };
   frame.addEventListener('pointerup', finishDrag); frame.addEventListener('pointercancel', finishDrag);
-  form.addEventListener('submit', async event => {
-    event.preventDefault(); if (vaultBusy) return;
-    const firstSeal=Boolean(vault.configuring && !vault.configured);
-    let opened=false;
-    vaultBusy = true; submit.disabled = true;
-    try {
-      const { contents, ...updated } = await apiChange(`/api/vaults/${vault.id}/unlock`, 'POST', { password: password.value, confirm: confirm.value });
-      Object.assign(vault, updated, { open: true, closing: false, configuring: false });
-      opened=true;
-      renderVaults();
-      installVaultContents(vault, contents);
-      forgetHistory();
-      password.value = ''; confirm.value = ''; form.querySelector('.vault-error').textContent = '';
-      refreshVaultVisibility();
-      // Run the same complete layout used by zoom/pan after the opened frame
-      // and the restored private surfaces have been installed in the DOM.
-      renderCamera();
-      scheduleCameraRender();
-    } catch (error) { form.querySelector('.vault-error').textContent = i18n.t(error.message); }
-    finally { vaultBusy = false; submit.disabled = false; }
-    if(firstSeal && opened) lock.click();
-  });
-  lock.addEventListener('click', async () => {
-    if (!vault.open) { password.focus({ preventScroll: true }); return; }
-    if (vaultBusy || gesture || historyBusy || canvasActions) return toast(i18n.t('Termina la acción actual antes de cerrar la Vault'));
-    if(!vault.configured) {
-      vault.configuring=!vault.configuring;
-      password.value=''; confirm.value=''; form.querySelector('.vault-error').textContent='';
-      renderVaults();
-      if(vault.configuring) password.focus({preventScroll:true});
-      return;
-    }
-    if ([...pendingVaultImports.values()].includes(vault.id)) return toast(i18n.t('Espera a que terminen las importaciones antes de cerrar'));
-    vaultBusy = true; lock.disabled = true;
-    collectVaultMembership();
-    vault.closing = true;
-    password.value = ''; confirm.value = '';
-    const cipher = form.querySelector('.vault-cipher');
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let cipherFrame = 0;
-    let cycleStarted = performance.now();
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&';
-    const tick = now => {
-      const progress = reducedMotion ? 5 : Math.min(5, (now - cycleStarted) / 400);
-      const settled = Math.floor(progress);
-      cipher.textContent = Array.from({ length: 5 }, (_, i) => i < settled ? '*' : i === settled ? characters[Math.floor(Math.random() * characters.length)] : '·').join('');
-      if (progress < 5) cipherFrame = requestAnimationFrame(tick);
-      else {
-        cipher.textContent = '*****';
-        if (!reducedMotion) { cycleStarted = now; cipherFrame = requestAnimationFrame(tick); }
-      }
-    };
-    cipherFrame = requestAnimationFrame(tick);
-    refreshVaultVisibility();
-    writingEditor.style.visibility = 'hidden';
-    try {
-      await finishWritingEdit(true);
-      const active = document.activeElement;
-      if (active?.matches('.text-editor')) {
-        const card = active.closest('.video-card'), item = items.get(card?.dataset.id);
-        if (item) { clearTimeout(textTimers.get(item.id)); await patchItem(item.id, { text: active.value }); }
-        active.blur();
-      }
-      collectVaultMembership(); await saveVaultMembership();
-      const updated = await apiChange(`/api/vaults/${vault.id}/lock`, 'POST');
-      Object.assign(vault, updated, { open: false });
-      purgeVaultMemory(vault);
-      cancelAnimationFrame(cipherFrame);
-      cipher.textContent = '*****';
-      refreshVaultVisibility();
-      vault.closing = false;
-      const arc = lock.querySelector('svg');
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        const animation = arc.animate([
-          { transform: 'translateY(-10px)' },
-          { transform: 'translateY(-16px)', offset: .3 },
-          { transform: 'translateY(2px)', offset: .8 },
-          { transform: 'translateY(0)' }
-        ], { duration: 300, easing: 'ease-in-out' });
-        await animation.finished.catch(() => {});
-        frame.classList.remove('vault-glow');
-        void frame.offsetWidth;
-        frame.classList.add('vault-glow');
-      }
-      vault.open = false; selectedWriting = null; hoveredWriting = null;
-      forgetHistory(); refreshVaultVisibility();
-      toast(i18n.t('Vault cifrada y cerrada'));
-    } catch (error) { toast(error.message); }
-    finally {
-      cancelAnimationFrame(cipherFrame);
-      vault.closing = false; vaultBusy = false; lock.disabled = false;
-      writingEditor.style.visibility = '';
-      refreshVaultVisibility();
-    }
-  });
   remove.addEventListener('click', () => requestDeleteVault(vault).catch(error => toast(error.message)));
 }
 async function addVault() {

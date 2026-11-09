@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export async function prepareTools(platform=process.platform,arch=process.arch) {
   if(!['linux','win32'].includes(platform) || !['x64','arm64'].includes(arch)) throw new Error('Plataforma de escritorio no preparada: '+platform+'-'+arch);
+  if (platform === 'win32' && arch === 'arm64') throw new Error('La publicación fijada de FFmpeg no ofrece Windows ARM64');
   const dir=path.join(root,'.desktop-tools',`${platform}-${arch}`);await fs.mkdir(dir,{recursive:true});
   const executable=platform==='win32'?'ffmpeg.exe':'ffmpeg', output=path.join(dir,executable);
   const release=JSON.parse(await fs.readFile(path.join(root,'node_modules/ffmpeg-static/package.json'),'utf8'))['ffmpeg-static']['binary-release-tag'];
@@ -20,6 +21,13 @@ export async function prepareTools(platform=process.platform,arch=process.arch) 
     if(!response.ok) throw new Error(`FFmpeg no disponible para ${platform}-${arch}: ${response.status}`);
     try {await pipeline(Readable.fromWeb(response.body),createGunzip(),createWriteStream(`${output}.tmp`));await fs.rename(`${output}.tmp`,output);}
     catch(error) {await fs.rm(`${output}.tmp`,{force:true});throw error;}
+  }
+  const pins = JSON.parse(await fs.readFile(path.join(root,'scripts/tools-pin.json'),'utf8'));
+  const expected = pins[`${platform}-${arch}`];
+  const actual = createHash('sha256').update(await fs.readFile(output)).digest('hex');
+  if (!expected || actual !== expected) {
+    await fs.rm(output, {force:true});
+    throw new Error('FFmpeg no coincide con el hash de seguridad para ' + platform + '-' + arch);
   }
   await fs.chmod(output,0o755);
   for(const suffix of ['LICENSE','README']) {

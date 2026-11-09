@@ -81,22 +81,38 @@ async function persist(options) {
   saveChain = operation; return operation;
 }
 
-await Promise.all([fsp.mkdir(mediaDir, { recursive: true }), fsp.mkdir(originalDir, { recursive: true }), fsp.mkdir(tempDir, { recursive: true })]);
+await Promise.all([fsp.mkdir(mediaDir, { recursive: true, mode:0o700 }), fsp.mkdir(originalDir, { recursive: true, mode:0o700 }), fsp.mkdir(tempDir, { recursive: true, mode:0o700 })]);
 const lockFile = path.join(dataDir, '.server.lock');
-try {
-  await fsp.writeFile(lockFile, String(process.pid), { flag: 'wx' });
-} catch (error) {
-  if (error.code !== 'EEXIST') throw error;
-  const owner = Number(await fsp.readFile(lockFile, 'utf8').catch(() => '0'));
-  let running = false;
-  if (Number.isInteger(owner) && owner > 0) {
-    try { process.kill(owner, 0); running = true; }
-    catch (checkError) { if (checkError.code !== 'ESRCH') throw checkError; }
-  }
-  if (running) throw new Error(`Ya hay otra instancia usando ${dataDir} (PID ${owner}).`);
-  await fsp.rm(lockFile, { force: true });
-  await fsp.writeFile(lockFile, String(process.pid), { flag: 'wx' });
+const candidateLock = `${lockFile}.${process.pid}.${randomUUID()}`;
+const reclaimGuard = `${lockFile}.reclaim`;
+async function lockOwnerAlive() {
+  const owner = Number(await fsp.readFile(lockFile, 'utf8').catch(error => {
+    if (error.code === 'ENOENT') return '0';
+    throw error;
+  }));
+  if (!Number.isInteger(owner) || owner <= 0) return false;
+  try { process.kill(owner, 0); return true; }
+  catch (error) { if (error.code === 'ESRCH') return false; throw error; }
 }
+await fsp.writeFile(candidateLock, String(process.pid), {flag:'wx', mode:0o600});
+try {
+  try { await fsp.link(candidateLock, lockFile); }
+  catch (error) {
+    if (error.code !== 'EEXIST') throw error;
+    if (await lockOwnerAlive()) throw new Error('Ya hay otra instancia usando este canvas.');
+    try { await fsp.mkdir(reclaimGuard, {mode:0o700}); }
+    catch (error) {
+      if (error.code === 'EEXIST') throw new Error('Otra instancia está recuperando el bloqueo. Si se interrumpió, revisa .server.lock.reclaim con la app cerrada.');
+      throw error;
+    }
+    try {
+      if (await lockOwnerAlive()) throw new Error('Ya hay otra instancia usando este canvas.');
+      await fsp.rm(lockFile, {force:true});
+      await fsp.link(candidateLock, lockFile);
+    } finally { await fsp.rmdir(reclaimGuard); }
+  }
+} finally { await fsp.rm(candidateLock, {force:true}); }
+
 function releaseLock() {
   storage?.eraseKeys();
   try { if (fs.readFileSync(lockFile, 'utf8') === String(process.pid)) fs.rmSync(lockFile, { force: true }); }
@@ -237,6 +253,8 @@ function arrangeImportBatch(batchId) {
   }
 }
 async function convert(job) {
+  const release = await acquireMutation();
+  try {
   const { id, input } = job;
   const item = items.get(id) || deletedItems.get(id);
   if (!item) { await fsp.rm(input, { force: true }); return; }
@@ -297,6 +315,7 @@ async function convert(job) {
     await Promise.allSettled([video, poster, image, thumbnail].map(file => fsp.rm(file, { force: true })));
     await save();
   }
+  } finally { release(); }
 }
 function pump() {
   while (active < 2 && queue.length) {
@@ -355,7 +374,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
     if(desktopToken && req.headers['x-apoxia-desktop-token']!==desktopToken) return json(res,403,{error:'Esta instancia pertenece a la app de escritorio'});
     const host = req.headers.host;
     const allowed = [`127.0.0.1:${port}`, `localhost:${port}`];
-    if (!allowed.includes(host) || (req.headers.origin && !allowed.map(value => `http://${value}`).includes(req.headers.origin)) || req.headers['sec-fetch-site'] === 'cross-site') return json(res, 403, { error: 'Origen no permitido' });
+    if (!allowed.includes(host) || (req.headers.origin && !allowed.map(value => `http://${value}`).includes(req.headers.origin)) || (req.headers['sec-fetch-site'] && !['none','same-origin'].includes(req.headers['sec-fetch-site']))) return json(res, 403, { error: 'Origen no permitido' });
     const session = getSession(req, res);requestContext.getStore().session=session;
     if (!['GET', 'HEAD'].includes(req.method)) releaseMutation = await acquireMutation();
     const url = new URL(req.url, 'http://localhost');
@@ -442,21 +461,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
         try{await persist({geometryOnly:true});}catch(error){vault.hint=previous;throw error;}
         return json(res,200,publicVault(vault,session));
       }
-      if (req.method === 'POST' && vaultMatch[2] === 'unlock') {
-        if (req.headers['x-apoxia-protocol'] !== '16') return json(res, 409, { error: 'Recarga la interfaz para activar el cifrado real antes de abrir la Vault' });
-        const input = await readJson(req, 4000);
-        if (typeof input.password !== 'string' || input.password.length < 1 || input.password.length > 1024) return json(res, 400, { error: 'Introduce una contraseña' });
-        await clearPreviewPacks();
-        await storage.unlock(vault, input.password, input.confirm, session);
-        await persist();
-        return json(res, 200, { ...publicVault(vault, session), contents: { items: vault.members.items.map(id => items.get(id)).filter(Boolean), writings: vault.members.writings.map(id => writings.get(id)).filter(Boolean), strokes: vault.members.strokes.map(id => strokes.get(id)).filter(Boolean) } });
-      }
-      if (req.method === 'POST' && vaultMatch[2] === 'lock') {
-        if (active || queue.length) return json(res, 409, { error: 'Espera a que terminen las importaciones antes de cerrar' });
-        await storage.lock(vault, session, persist);
-        res.setHeader('Clear-Site-Data', '"cache"');
-        return json(res, 200, publicVault(vault, session));
-      }
+      if (req.method === 'POST' && ['unlock','lock'].includes(vaultMatch[2])) return json(res, 410, { error: 'Los contenedores SFW siempre están abiertos' });
       if (req.method === 'PATCH' && !vaultMatch[2]) {
         if (req.headers['x-apoxia-protocol'] !== '16') return json(res, 409, { error: 'Recarga la interfaz para utilizar las coordenadas locales de la Vault' });
         const input = await readJson(req, 2000000);
@@ -938,6 +943,7 @@ const server = http.createServer((req,res)=>requestContext.run({session:null},as
     }
     const originalPath = /^\/api\/items\/([0-9a-f-]{36})\/original-path$/.exec(pathname);
     if (originalPath && req.method === 'GET') {
+      if (!desktopToken) return json(res, 404, {error:'Original no disponible'});
       const item = items.get(originalPath[1]);
       if (!item || !item.originalAvailable || !/^\.[a-z0-9]{1,8}$/.test(item.originalExt || '')) return json(res, 404, { error: 'Original no disponible' });
       if (storage.owner('items', item.id)?.crypto) return json(res, 409, { error: 'El original es privado dentro de una Vault; usa la descarga para obtener una copia' });
