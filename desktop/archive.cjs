@@ -181,7 +181,7 @@ async function extractZip(file,destination,progress) {
       if(record.relative) {
         const relative=relativeFile(record.relative);
         if(!relative.startsWith('linked-files/') || !(await fs.stat(path.join(data,relative))).isFile()) throw new Error('Falta un archivo vinculado en el ZIP');
-        if (/\.(exe|com|bat|cmd|ps1|vbs|vbe|wsf|wsh|msi|scr|desktop|appimage|sh|bash|js|mjs|cjs|py|pl|rb)$/i.test(relative)) continue;
+        if (!/\.(mp4|m4v|webm|mov|mkv|avi|jpg|jpeg|png|webp|gif|avif|tif|tiff|bmp|svg|heic|heif|mp3|wav|m4a|aac|flac|ogg|pdf)$/i.test(relative)) continue;
         registry[id]=path.join(data,relative);
       }
     }
