@@ -22,3 +22,11 @@ Base original 16b2922. SFW elimina el cifrado de contenedores y rechaza canvas c
 npm test. Prueba de contenedores con mover, escalar, guardar, recargar y liberar contenido. UI de contenedor abierto sin formulario de contraseña ni botón de cierre. Pruebas de servidor HTTP. Extracción ZIP hostil y rechazo de symlinks. Contención de 50 instancias. Hash alterado de FFmpeg. Instalación independiente de dependencias y empaquetado Linux x64 satisfactorios.
 
 La aprobación final exige las pruebas pendientes anteriores y revisión de la variante por el equipo auditor. No se ha construido ni probado Windows. El empaquetado Linux debe repetirse tras los últimos cambios de interfaz antes de distribuirlo.
+
+## Revisión r2
+
+- R1 corregido. Los enlaces relativos importados se registran solo para las extensiones de la lista multimedia/documento de open-original. ZIP con innocent.txt, photo.jpg, payload.hta y shortcut.lnk comprobado: solo photo.jpg queda registrado. Los demás carecen de entrada para la resolución del enlace y requieren volver a enlazarlos.
+- R2 corregido. npm test incluye verification/sfw-containers.test.mjs. En Node 26 el ejecutor aislado resume cinco archivos. La ejecución adicional con --test-isolation=none muestra las 18 pruebas individuales, todas correctas.
+- R3 parcialmente comprobado. Se ejercitó copyCanvasSafely con una copia real y un backend iniciado sobre el origen dentro de la ventana de copia. Una petición POST /api/vaults modificó state.json. La importación rechazó el cambio y eliminó el destino.
+- Empaquetado Linux x64 repetido tras los cambios de interfaz y r2, terminado correctamente.
+- R3 pendiente: prueba de lanzamiento real en Windows, reinicio real de Electron con relay activo y contraste de los hashes con una copia de procedencia independiente. Descargar otra vez de la misma publicación no constituye esa confirmación independiente.
